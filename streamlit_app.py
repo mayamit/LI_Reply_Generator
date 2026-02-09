@@ -1,14 +1,42 @@
-"""Streamlit UI for LI Reply Generator — Stories 1.1–1.4."""
+"""Streamlit UI for LI Reply Generator — Stories 1.1–1.5."""
+
+import html
+import logging
 
 import httpx
 import streamlit as st
-from pydantic import ValidationError
-
+import streamlit.components.v1 as components
 from backend.app.models.post_context import PostContextInput
 from backend.app.models.presets import get_preset_labels
 from backend.app.services.validation import validate_and_build_payload
+from pydantic import ValidationError
+
+logger = logging.getLogger(__name__)
 
 API_BASE = "http://127.0.0.1:8000"
+
+
+def _copy_to_clipboard(text: str) -> None:
+    """Inject JS to copy *text* to the clipboard with visual feedback."""
+    escaped = html.escape(text).replace("`", "\\`").replace("$", "\\$")
+    components.html(
+        f"""
+        <script>
+        const text = `{escaped}`;
+        navigator.clipboard.writeText(text).then(function() {{
+            document.getElementById('cb-msg').innerText = 'Copied to clipboard!';
+            document.getElementById('cb-msg').style.color = '#28a745';
+        }}).catch(function() {{
+            document.getElementById('cb-msg').innerText =
+                'Clipboard not available — please select the text and copy manually.';
+            document.getElementById('cb-msg').style.color = '#dc3545';
+        }});
+        </script>
+        <p id="cb-msg" style="font-size:14px; margin:0;"></p>
+        """,
+        height=30,
+    )
+
 
 st.set_page_config(page_title="LI Reply Generator", layout="centered")
 st.title("LinkedIn Reply Generator")
@@ -169,40 +197,57 @@ if st.session_state.reply_text:
         meta = st.session_state.generation_meta
         st.caption(f"Model: {meta['model_id']} | Latency: {meta['latency_ms']}ms")
 
+    # --- Action buttons ---
     if is_approved:
         st.success("Reply approved and saved!")
-    else:
-        # AC3: Approve button (always shown when reply exists)
-        if st.button("Approve & Save", type="primary"):
-            # AC4: Block if empty
-            if not edited_reply or not edited_reply.strip():
-                st.error("Reply text cannot be empty. Please edit before approving.")
-            elif st.session_state.record_id is None:
-                st.error("No draft record available. Generate a reply first.")
-            else:
-                # AC5/AC6: Call approve endpoint (idempotent)
-                try:
-                    resp = httpx.post(
-                        f"{API_BASE}/api/v1/approve",
-                        json={
-                            "record_id": st.session_state.record_id,
-                            "final_reply": edited_reply,
-                        },
-                        timeout=10,
-                    )
-                except Exception as exc:
-                    # AC7: Persistence failure — user can retry without losing edits
-                    st.error(f"Could not reach API: {exc}. Your edits are preserved — try again.")
-                    st.stop()
 
-                if resp.status_code == 200:
-                    st.session_state.approved = True
-                    st.session_state.reply_text = edited_reply
-                    st.success("Reply approved and saved!")
-                    st.rerun()
+    col_approve, col_copy = st.columns([1, 1])
+
+    with col_copy:
+        # Story 1.5: Copy to clipboard (works for draft and approved)
+        copy_clicked = st.button(
+            "Copy to Clipboard",
+            disabled=not edited_reply or not edited_reply.strip(),
+        )
+        if copy_clicked:
+            if edited_reply and edited_reply.strip():
+                _copy_to_clipboard(edited_reply)
+                logger.info("reply_copied")
+
+    if not is_approved:
+        with col_approve:
+            if st.button("Approve & Save", type="primary"):
+                # AC4: Block if empty
+                if not edited_reply or not edited_reply.strip():
+                    st.error("Reply text cannot be empty. Please edit before approving.")
+                elif st.session_state.record_id is None:
+                    st.error("No draft record available. Generate a reply first.")
                 else:
-                    # AC7: Show error, user can retry
-                    detail = resp.json().get("detail", resp.text)
-                    st.error(f"Approval failed: {detail}. Your edits are preserved — try again.")
+                    # AC5/AC6: Call approve endpoint (idempotent)
+                    try:
+                        resp = httpx.post(
+                            f"{API_BASE}/api/v1/approve",
+                            json={
+                                "record_id": st.session_state.record_id,
+                                "final_reply": edited_reply,
+                            },
+                            timeout=10,
+                        )
+                    except Exception as exc:
+                        st.error(
+                            f"Could not reach API: {exc}. Your edits are preserved — try again."
+                        )
+                        st.stop()
+
+                    if resp.status_code == 200:
+                        st.session_state.approved = True
+                        st.session_state.reply_text = edited_reply
+                        st.success("Reply approved and saved!")
+                        st.rerun()
+                    else:
+                        detail = resp.json().get("detail", resp.text)
+                        st.error(
+                            f"Approval failed: {detail}. Your edits are preserved — try again."
+                        )
 else:
     st.info("Submit the form above to generate a reply.")
