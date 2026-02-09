@@ -28,7 +28,7 @@ class GenerateRequest(BaseModel):
     """Incoming request to generate a reply."""
 
     context: PostContextInput
-    preset_id: str
+    preset_id: str | None = None
 
 
 class LLMSuccess(BaseModel):

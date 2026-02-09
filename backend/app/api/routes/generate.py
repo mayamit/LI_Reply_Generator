@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from backend.app.db.session import get_db
 from backend.app.models.llm import GenerateRequest, GenerateResponse, LLMFailure, LLMSuccess
 from backend.app.models.post_context import PostContextPayload
-from backend.app.models.presets import get_preset_by_id
+from backend.app.models.presets import get_default_preset, get_preset_by_id
 from backend.app.services.llm_client import generate_reply
 from backend.app.services.prompt_builder import build_prompt
 from backend.app.services.reply_repository import create_draft, update_generated_reply
@@ -29,9 +29,14 @@ def generate(body: GenerateRequest, db: Session = Depends(get_db)) -> GenerateRe
         raise HTTPException(status_code=422, detail=errors)
     assert payload_result is not None
 
-    preset = get_preset_by_id(body.preset_id)
-    if preset is None:
-        raise HTTPException(status_code=422, detail=[f"Unknown preset_id: {body.preset_id}"])
+    if body.preset_id is None:
+        preset = get_default_preset()
+    else:
+        preset = get_preset_by_id(body.preset_id)
+        if preset is None:
+            raise HTTPException(
+                status_code=422, detail=[f"Unknown preset_id: {body.preset_id}"]
+            )
 
     # Re-create payload with the request's preset_id
     payload = PostContextPayload(
