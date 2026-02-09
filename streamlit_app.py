@@ -1,4 +1,4 @@
-"""Streamlit UI for LI Reply Generator — Stories 1.1–1.5."""
+"""Streamlit UI for LI Reply Generator."""
 
 import html
 import logging
@@ -39,6 +39,21 @@ def _copy_to_clipboard(text: str) -> None:
     )
 
 
+def _safe_error_detail(resp: httpx.Response) -> str:
+    """Extract a user-friendly error message from an API response.
+
+    Never exposes raw stack traces or secrets.
+    """
+    try:
+        body = resp.json()
+        detail = body.get("detail", "")
+        if isinstance(detail, list):
+            return "; ".join(str(d) for d in detail)
+        return str(detail)
+    except Exception:
+        return f"Unexpected error (HTTP {resp.status_code}). Please try again."
+
+
 st.set_page_config(page_title="LI Reply Generator", layout="centered")
 st.title("LinkedIn Reply Generator")
 
@@ -57,6 +72,14 @@ if "approved" not in st.session_state:
     st.session_state.approved = False
 if "generation_meta" not in st.session_state:
     st.session_state.generation_meta = None
+if "generating" not in st.session_state:
+    st.session_state.generating = False
+if "approving" not in st.session_state:
+    st.session_state.approving = False
+if "last_error" not in st.session_state:
+    st.session_state.last_error = None
+if "last_error_retryable" not in st.session_state:
+    st.session_state.last_error_retryable = False
 
 # --- API connectivity check ---
 st.subheader("API Status")
@@ -65,8 +88,11 @@ if st.button("Check API health"):
         resp = httpx.get(f"{API_BASE}/health", timeout=5)
         resp.raise_for_status()
         st.success(f"API is reachable: {resp.json()}")
-    except Exception as exc:
-        st.error(f"Cannot reach API: {exc}")
+    except Exception:
+        st.error(
+            "Cannot reach API. Ensure the API is running "
+            f"at {API_BASE} (run `make run-api`)."
+        )
 
 st.divider()
 
@@ -95,14 +121,21 @@ with st.form("post_context_form"):
     article_text = st.text_area("Linked article text (if any)", height=100)
     image_ref = st.text_input("Image reference / alt text")
 
-    submitted = st.form_submit_button("Validate & Generate Reply")
+    # AC1: Disable submit while generation is in progress
+    submitted = st.form_submit_button(
+        "Validate & Generate Reply",
+        disabled=st.session_state.generating,
+    )
 
 if submitted:
-    # Reset approval state on new generation
+    # Reset state for new generation
     st.session_state.reply_text = ""
     st.session_state.record_id = None
     st.session_state.approved = False
     st.session_state.generation_meta = None
+    st.session_state.last_error = None
+    st.session_state.last_error_retryable = False
+    st.session_state.generating = True
 
     preset_id = label_to_id[selected_label]
 
@@ -118,13 +151,14 @@ if submitted:
         if val:
             raw[key] = val
 
-    # --- Pydantic field validation ---
+    # --- Pydantic field validation (AC8: inputs preserved on error) ---
     try:
         ctx = PostContextInput(**raw)
     except ValidationError as exc:
         for err in exc.errors():
             field = " -> ".join(str(loc) for loc in err["loc"])
             st.error(f"**{field}**: {err['msg']}")
+        st.session_state.generating = False
         st.stop()
 
     # --- Business validation (preset lookup, URL checks) ---
@@ -132,6 +166,7 @@ if submitted:
     if errors:
         for e in errors:
             st.error(e)
+        st.session_state.generating = False
         st.stop()
 
     assert payload is not None
@@ -142,7 +177,7 @@ if submitted:
     with st.expander("Validated Payload"):
         st.json(payload.model_dump())
 
-    # --- Call generate endpoint ---
+    # --- Call generate endpoint (AC1: spinner during generation) ---
     with st.spinner("Generating reply..."):
         try:
             resp = httpx.post(
@@ -150,34 +185,63 @@ if submitted:
                 json={"context": ctx.model_dump(), "preset_id": preset_id},
                 timeout=60,
             )
-        except Exception as exc:
-            st.error(f"Could not reach API: {exc}")
+        except Exception:
+            st.session_state.last_error = (
+                "Could not reach API. Ensure the API is running "
+                f"at {API_BASE} (run `make run-api`)."
+            )
+            st.session_state.last_error_retryable = True
+            st.session_state.generating = False
+            st.error(st.session_state.last_error)
+            st.info("Your inputs are preserved. Fix the issue and try again.")
             st.stop()
 
+    st.session_state.generating = False
+
     if resp.status_code == 503:
-        st.warning("LLM not configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY in .env.")
+        st.warning(
+            "LLM not configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY "
+            "in your .env file to enable reply generation."
+        )
         st.stop()
 
+    # AC7: User-friendly error messages, no stack traces
     if resp.status_code != 200:
-        st.error(f"API error ({resp.status_code}): {resp.text}")
+        detail = _safe_error_detail(resp)
+        st.session_state.last_error = f"Generation failed: {detail}"
+        st.session_state.last_error_retryable = resp.status_code >= 500
+        st.error(st.session_state.last_error)
+        if st.session_state.last_error_retryable:
+            st.info("This error may be temporary. Your inputs are preserved — try again.")
         st.stop()
 
     data = resp.json()
     result = data["result"]
 
     if result["status"] == "success":
+        # AC2: Success confirmation after generation
         st.session_state.reply_text = result["reply_text"]
         st.session_state.record_id = data.get("record_id")
         st.session_state.generation_meta = {
             "model_id": result.get("model_id", "N/A"),
             "latency_ms": result.get("latency_ms", "N/A"),
         }
+        st.session_state.last_error = None
+        st.success("Reply generated successfully!")
         if data.get("record_id") is None:
-            st.warning("Draft could not be saved to database. You can still copy the reply text.")
+            st.warning(
+                "Draft could not be saved to database. "
+                "You can still copy the reply text."
+            )
     else:
+        # AC3: Retryable errors offer retry path
         msg = result.get("user_message", "Unknown error")
-        if result.get("retryable"):
-            st.warning(f"{msg} (retryable — try again)")
+        is_retryable = result.get("retryable", False)
+        st.session_state.last_error = msg
+        st.session_state.last_error_retryable = is_retryable
+        if is_retryable:
+            st.warning(f"{msg}")
+            st.info("This error is retryable. Your inputs are preserved — try again.")
         else:
             st.error(msg)
 
@@ -192,8 +256,8 @@ st.subheader("Generated Reply")
 if st.session_state.reply_text:
     is_approved = st.session_state.approved
 
-    # AC1: Editable multiline field pre-filled with generated text
-    # AC9: Editing disabled after approval
+    # Editable multiline field pre-filled with generated text
+    # Editing disabled after approval (AC5)
     edited_reply = st.text_area(
         "Edit your reply before approving",
         value=st.session_state.reply_text,
@@ -213,7 +277,7 @@ if st.session_state.reply_text:
     col_approve, col_copy = st.columns([1, 1])
 
     with col_copy:
-        # Story 1.5: Copy to clipboard (works for draft and approved)
+        # AC6: Copy confirmation
         copy_clicked = st.button(
             "Copy to Clipboard",
             disabled=not edited_reply or not edited_reply.strip(),
@@ -225,38 +289,55 @@ if st.session_state.reply_text:
 
     if not is_approved:
         with col_approve:
-            if st.button("Approve & Save", type="primary"):
-                # AC4: Block if empty
+            # AC4: Disable approve while in progress
+            approve_clicked = st.button(
+                "Approve & Save",
+                type="primary",
+                disabled=st.session_state.approving,
+            )
+            if approve_clicked:
                 if not edited_reply or not edited_reply.strip():
-                    st.error("Reply text cannot be empty. Please edit before approving.")
+                    st.error(
+                        "Reply text cannot be empty. "
+                        "Please edit before approving."
+                    )
                 elif st.session_state.record_id is None:
                     st.error("No draft record available. Generate a reply first.")
                 else:
-                    # AC5/AC6: Call approve endpoint (idempotent)
-                    try:
-                        resp = httpx.post(
-                            f"{API_BASE}/api/v1/approve",
-                            json={
-                                "record_id": st.session_state.record_id,
-                                "final_reply": edited_reply,
-                            },
-                            timeout=10,
-                        )
-                    except Exception as exc:
-                        st.error(
-                            f"Could not reach API: {exc}. Your edits are preserved — try again."
-                        )
-                        st.stop()
+                    st.session_state.approving = True
+                    # AC4: Spinner during approval
+                    with st.spinner("Saving approval..."):
+                        try:
+                            resp = httpx.post(
+                                f"{API_BASE}/api/v1/approve",
+                                json={
+                                    "record_id": st.session_state.record_id,
+                                    "final_reply": edited_reply,
+                                },
+                                timeout=10,
+                            )
+                        except Exception:
+                            st.session_state.approving = False
+                            st.error(
+                                "Could not reach API. "
+                                "Your edits are preserved — try again."
+                            )
+                            st.stop()
+
+                    st.session_state.approving = False
 
                     if resp.status_code == 200:
+                        # AC5: Success confirmation + locked state
                         st.session_state.approved = True
                         st.session_state.reply_text = edited_reply
                         st.success("Reply approved and saved!")
                         st.rerun()
                     else:
-                        detail = resp.json().get("detail", resp.text)
+                        # AC7: User-friendly error
+                        detail = _safe_error_detail(resp)
                         st.error(
-                            f"Approval failed: {detail}. Your edits are preserved — try again."
+                            f"Approval failed: {detail}. "
+                            "Your edits are preserved — try again."
                         )
 else:
     st.info("Submit the form above to generate a reply.")
