@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from backend.app.api.routes.health import router as health_router
+from backend.app.api.routes.post_context import router as post_context_router
 from backend.app.core.logging import setup_logging
 
 setup_logging()
@@ -28,3 +29,4 @@ app = FastAPI(
 )
 
 app.include_router(health_router, tags=["health"])
+app.include_router(post_context_router, tags=["post-context"])
