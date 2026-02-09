@@ -12,6 +12,7 @@ from backend.app.api.routes.health import router as health_router
 from backend.app.api.routes.post_context import router as post_context_router
 from backend.app.core.logging import setup_logging
 from backend.app.core.settings import settings
+from backend.app.db.engine import init_db
 from backend.app.db.migrations import run_migrations
 from backend.app.models.presets import validate_presets
 
@@ -23,6 +24,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logger.info("app_start")
     logger.info("config_loaded: %s", settings.safe_dump())
+    init_db()
     run_migrations()
     validate_presets()
     logger.info("LI Reply Generator API ready")

@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from backend.app.models.reply_record import ReplyRecord
@@ -22,6 +23,25 @@ class RecordNotFoundError(Exception):
 
 class InvalidTransitionError(Exception):
     """Raised when a status transition violates lifecycle rules."""
+
+
+class DatabaseLockedError(Exception):
+    """Raised when the database is locked by another process (retryable)."""
+
+
+def _handle_operational_error(exc: OperationalError, operation: str) -> None:
+    """Check for database-locked errors and raise a categorized exception."""
+    msg = str(exc).lower()
+    if "locked" in msg or "busy" in msg:
+        logger.warning(
+            "db_write_failed: operation=%s reason=database_locked (retryable)",
+            operation,
+        )
+        raise DatabaseLockedError(
+            f"Database is locked during '{operation}'. "
+            f"Another process may be writing. Please retry."
+        ) from exc
+    raise exc
 
 
 # ---------------------------------------------------------------------------
@@ -56,7 +76,10 @@ def create_draft(
         image_ref=image_ref,
     )
     db.add(record)
-    db.flush()
+    try:
+        db.flush()
+    except OperationalError as exc:
+        _handle_operational_error(exc, "create_draft")
     logger.info(
         "reply_record_created: id=%d preset_id=%s post_text_len=%d",
         record.id,
@@ -81,7 +104,10 @@ def update_generated_reply(
     record.generated_at = generated_at
     record.llm_model_identifier = llm_model_identifier
     record.llm_request_id = llm_request_id
-    db.flush()
+    try:
+        db.flush()
+    except OperationalError as exc:
+        _handle_operational_error(exc, "update_generated_reply")
     logger.info(
         "reply_record_updated_generated: id=%d reply_len=%d",
         record.id,
@@ -119,7 +145,10 @@ def approve_reply(
     record.status = "approved"
     record.final_reply = final_reply
     record.approved_at = approved_at
-    db.flush()
+    try:
+        db.flush()
+    except OperationalError as exc:
+        _handle_operational_error(exc, "approve_reply")
     logger.info("reply_record_approved: id=%d", record.id)
     return record
 
@@ -199,7 +228,10 @@ def delete_record(db: Session, record_id: int) -> None:
     """
     record = get_by_id(db, record_id)
     db.delete(record)
-    db.flush()
+    try:
+        db.flush()
+    except OperationalError as exc:
+        _handle_operational_error(exc, "delete_record")
     logger.info("reply_record_deleted: id=%d", record_id)
 
 
