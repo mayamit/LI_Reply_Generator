@@ -115,15 +115,32 @@ with st.form("post_context_form"):
     )
 
     st.subheader("Optional Context")
-    author_name = st.text_input("Author name")
-    author_profile_url = st.text_input("Author profile URL")
-    post_url = st.text_input("Post URL")
-    article_text = st.text_area("Linked article text (if any)", height=100)
-    image_ref = st.text_input("Image reference / alt text")
+    author_name = st.text_input(
+        "Author name",
+        help="Name of the post author (max 200 characters).",
+    )
+    author_profile_url = st.text_input(
+        "Author profile URL",
+        help="LinkedIn profile URL of the post author.",
+    )
+    post_url = st.text_input(
+        "Post URL",
+        help="Direct link to the LinkedIn post.",
+    )
+    article_text = st.text_area(
+        "Linked article text (if any)",
+        height=100,
+        help="Paste the article body if the post links to one (max 50,000 characters).",
+    )
+    image_ref = st.text_input(
+        "Image reference / alt text",
+        help="Describe any image attached to the post (max 2,000 characters).",
+    )
 
     # AC1: Disable submit while generation is in progress
     submitted = st.form_submit_button(
         "Validate & Generate Reply",
+        type="primary",
         disabled=st.session_state.generating,
     )
 

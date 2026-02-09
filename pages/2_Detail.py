@@ -74,11 +74,10 @@ st.write(f"**Preset:** {preset_display} (`{record.preset_id}`)")
 # --- Original Post ---
 st.markdown("### Original Post")
 st.text_area(
-    "Post text",
+    "Original post text",
     value=record.post_text or "",
     disabled=True,
     height=150,
-    label_visibility="collapsed",
 )
 
 if record.article_text:
@@ -96,7 +95,6 @@ if record.generated_reply:
         value=record.generated_reply,
         disabled=True,
         height=150,
-        label_visibility="collapsed",
     )
 else:
     st.info("No generated reply recorded.")
@@ -109,7 +107,6 @@ if record.status == "approved" and record.final_reply:
         value=record.final_reply,
         disabled=True,
         height=150,
-        label_visibility="collapsed",
     )
 else:
     st.info("Not approved")
@@ -152,9 +149,12 @@ if st.session_state.get("confirm_delete"):
                 st.switch_page("pages/1_History.py")
             except RecordNotFoundError:
                 st.error("Record not found — it may have already been deleted.")
-            except Exception as exc:
+            except Exception:
                 db.rollback()
-                st.error(f"Deletion failed: {exc}")
+                st.error(
+                    "Deletion failed due to an unexpected error. "
+                    "Please try again."
+                )
             finally:
                 db.close()
     with col_no:

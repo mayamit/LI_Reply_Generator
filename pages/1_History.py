@@ -24,7 +24,10 @@ with col_status:
     selected_status = st.selectbox("Status", options=status_options)
 
 with col_author:
-    author_filter = st.text_input("Author name (contains)")
+    author_filter = st.text_input(
+        "Author name (contains)",
+        help="Filter records by author name substring.",
+    )
 
 # Resolve filter values
 status_filter = None if selected_status == "All" else selected_status
@@ -63,6 +66,15 @@ if total == 0:
 st.caption(f"Showing {len(records)} of {total} records")
 
 preset_labels = get_preset_labels()
+
+# Column headers
+header_cols = st.columns([0.5, 2, 2, 1.5, 2, 1])
+header_cols[0].markdown("**St.**")
+header_cols[1].markdown("**Author**")
+header_cols[2].markdown("**Preset**")
+header_cols[3].markdown("**Status**")
+header_cols[4].markdown("**Date**")
+header_cols[5].markdown("**Action**")
 
 for record in records:
     preset_name = preset_labels.get(record.preset_id, record.preset_id)
