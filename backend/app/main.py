@@ -11,6 +11,8 @@ from backend.app.api.routes.generate import router as generate_router
 from backend.app.api.routes.health import router as health_router
 from backend.app.api.routes.post_context import router as post_context_router
 from backend.app.core.logging import setup_logging
+from backend.app.core.settings import settings
+from backend.app.db.migrations import run_migrations
 from backend.app.models.presets import validate_presets
 
 setup_logging()
@@ -19,8 +21,15 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    logger.info("app_start")
+    logger.info(
+        "config_loaded: db_path=%s debug=%s",
+        settings.app_db_path,
+        settings.debug,
+    )
+    run_migrations()
     validate_presets()
-    logger.info("LI Reply Generator API starting up")
+    logger.info("LI Reply Generator API ready")
     yield
     logger.info("LI Reply Generator API shutting down")
 
