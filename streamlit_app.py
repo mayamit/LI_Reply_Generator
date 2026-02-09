@@ -1,5 +1,6 @@
-"""Streamlit UI for LI Reply Generator — Stories 1.1–1.3."""
+"""Streamlit UI for LI Reply Generator — Stories 1.1–1.4."""
 
+import httpx
 import streamlit as st
 from pydantic import ValidationError
 
@@ -12,11 +13,19 @@ API_BASE = "http://127.0.0.1:8000"
 st.set_page_config(page_title="LI Reply Generator", layout="centered")
 st.title("LinkedIn Reply Generator")
 
+# --- Session state defaults ---
+if "reply_text" not in st.session_state:
+    st.session_state.reply_text = ""
+if "record_id" not in st.session_state:
+    st.session_state.record_id = None
+if "approved" not in st.session_state:
+    st.session_state.approved = False
+if "generation_meta" not in st.session_state:
+    st.session_state.generation_meta = None
+
 # --- API connectivity check ---
 st.subheader("API Status")
 if st.button("Check API health"):
-    import httpx
-
     try:
         resp = httpx.get(f"{API_BASE}/health", timeout=5)
         resp.raise_for_status()
@@ -52,6 +61,12 @@ with st.form("post_context_form"):
     submitted = st.form_submit_button("Validate & Generate Reply")
 
 if submitted:
+    # Reset approval state on new generation
+    st.session_state.reply_text = ""
+    st.session_state.record_id = None
+    st.session_state.approved = False
+    st.session_state.generation_meta = None
+
     preset_id = label_to_id[selected_label]
 
     # Build raw input dict, omitting empty optional fields
@@ -91,11 +106,6 @@ if submitted:
         st.json(payload.model_dump())
 
     # --- Call generate endpoint ---
-    st.divider()
-    st.subheader("Generated Reply")
-
-    import httpx
-
     with st.spinner("Generating reply..."):
         try:
             resp = httpx.post(
@@ -119,11 +129,14 @@ if submitted:
     result = data["result"]
 
     if result["status"] == "success":
-        st.text_area("Reply", value=result["reply_text"], height=200, disabled=True)
-        st.caption(
-            f"Model: {result.get('model_id', 'N/A')} | "
-            f"Latency: {result.get('latency_ms', 'N/A')}ms"
-        )
+        st.session_state.reply_text = result["reply_text"]
+        st.session_state.record_id = data.get("record_id")
+        st.session_state.generation_meta = {
+            "model_id": result.get("model_id", "N/A"),
+            "latency_ms": result.get("latency_ms", "N/A"),
+        }
+        if data.get("record_id") is None:
+            st.warning("Draft could not be saved to database. You can still copy the reply text.")
     else:
         msg = result.get("user_message", "Unknown error")
         if result.get("retryable"):
@@ -134,7 +147,62 @@ if submitted:
     if data.get("prompt_metadata"):
         with st.expander("Prompt Metadata"):
             st.json(data["prompt_metadata"])
+
+# --- Editable Reply + Approve & Save ---
+st.divider()
+st.subheader("Generated Reply")
+
+if st.session_state.reply_text:
+    is_approved = st.session_state.approved
+
+    # AC1: Editable multiline field pre-filled with generated text
+    # AC9: Editing disabled after approval
+    edited_reply = st.text_area(
+        "Edit your reply before approving",
+        value=st.session_state.reply_text,
+        height=200,
+        disabled=is_approved,
+        key="reply_editor",
+    )
+
+    if st.session_state.generation_meta:
+        meta = st.session_state.generation_meta
+        st.caption(f"Model: {meta['model_id']} | Latency: {meta['latency_ms']}ms")
+
+    if is_approved:
+        st.success("Reply approved and saved!")
+    else:
+        # AC3: Approve button (always shown when reply exists)
+        if st.button("Approve & Save", type="primary"):
+            # AC4: Block if empty
+            if not edited_reply or not edited_reply.strip():
+                st.error("Reply text cannot be empty. Please edit before approving.")
+            elif st.session_state.record_id is None:
+                st.error("No draft record available. Generate a reply first.")
+            else:
+                # AC5/AC6: Call approve endpoint (idempotent)
+                try:
+                    resp = httpx.post(
+                        f"{API_BASE}/api/v1/approve",
+                        json={
+                            "record_id": st.session_state.record_id,
+                            "final_reply": edited_reply,
+                        },
+                        timeout=10,
+                    )
+                except Exception as exc:
+                    # AC7: Persistence failure — user can retry without losing edits
+                    st.error(f"Could not reach API: {exc}. Your edits are preserved — try again.")
+                    st.stop()
+
+                if resp.status_code == 200:
+                    st.session_state.approved = True
+                    st.session_state.reply_text = edited_reply
+                    st.success("Reply approved and saved!")
+                    st.rerun()
+                else:
+                    # AC7: Show error, user can retry
+                    detail = resp.json().get("detail", resp.text)
+                    st.error(f"Approval failed: {detail}. Your edits are preserved — try again.")
 else:
-    st.divider()
-    st.subheader("Generated Reply")
     st.info("Submit the form above to generate a reply.")

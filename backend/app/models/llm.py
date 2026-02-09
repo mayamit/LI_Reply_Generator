@@ -60,3 +60,19 @@ class GenerateResponse(BaseModel):
 
     result: LLMSuccess | LLMFailure = Field(..., discriminator="status")
     prompt_metadata: dict[str, object] | None = None
+    record_id: int | None = None
+
+
+class ApproveRequest(BaseModel):
+    """Request to approve a draft reply."""
+
+    record_id: int
+    final_reply: str
+
+
+class ApproveResponse(BaseModel):
+    """Response after approving a reply."""
+
+    record_id: int
+    status: str
+    approved_at: str | None = None

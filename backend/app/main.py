@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from backend.app.api.routes.approve import router as approve_router
 from backend.app.api.routes.generate import router as generate_router
 from backend.app.api.routes.health import router as health_router
 from backend.app.api.routes.post_context import router as post_context_router
@@ -32,3 +33,4 @@ app = FastAPI(
 app.include_router(health_router, tags=["health"])
 app.include_router(post_context_router, tags=["post-context"])
 app.include_router(generate_router, tags=["generate"])
+app.include_router(approve_router, tags=["approve"])
