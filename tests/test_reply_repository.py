@@ -1,9 +1,10 @@
-"""Tests for the ReplyRecord schema and repository (Issue #13)."""
+"""Tests for the ReplyRecord schema and repository (Issue #13, Story 3.1)."""
 
 from datetime import UTC, datetime
 
 import pytest
 from backend.app.db.base import Base
+from backend.app.models.reply_record import VALID_STATUSES, ReplyRecord
 from backend.app.services.reply_repository import (
     InvalidTransitionError,
     RecordNotFoundError,
@@ -12,7 +13,7 @@ from backend.app.services.reply_repository import (
     get_by_id,
     update_generated_reply,
 )
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 
 
@@ -288,3 +289,158 @@ class TestGetById:
         assert fetched.preset_id == "casual_medium_add"
         assert fetched.author_name == "Bob"
         assert fetched.status == "draft"
+
+
+# ---------------------------------------------------------------------------
+# Story 3.1: Schema hardening — indexes
+# ---------------------------------------------------------------------------
+
+
+class TestIndexes:
+    def test_indexes_exist_on_fresh_schema(self, db: Session) -> None:
+        """AC3: Indexes on created_date, status, author_name exist."""
+        insp = inspect(db.bind)
+        indexes = insp.get_indexes("reply_records")
+        index_names = {idx["name"] for idx in indexes}
+        assert "ix_reply_records_created_date" in index_names
+        assert "ix_reply_records_status" in index_names
+        assert "ix_reply_records_author_name" in index_names
+
+    def test_index_columns_correct(self, db: Session) -> None:
+        insp = inspect(db.bind)
+        indexes = {
+            idx["name"]: idx["column_names"]
+            for idx in insp.get_indexes("reply_records")
+        }
+        assert indexes["ix_reply_records_created_date"] == [
+            "created_date",
+        ]
+        assert indexes["ix_reply_records_status"] == ["status"]
+        assert indexes["ix_reply_records_author_name"] == [
+            "author_name",
+        ]
+
+
+# ---------------------------------------------------------------------------
+# Story 3.1: Schema hardening — status constraint
+# ---------------------------------------------------------------------------
+
+
+class TestStatusConstraint:
+    def test_valid_statuses_constant(self) -> None:
+        assert "draft" in VALID_STATUSES
+        assert "approved" in VALID_STATUSES
+        assert len(VALID_STATUSES) == 2
+
+    def test_draft_status_accepted(self, db: Session) -> None:
+        record = create_draft(
+            db,
+            post_text="Test post.",
+            preset_id="prof_short_agree",
+            prompt_text="Prompt.",
+            created_date=_NOW,
+        )
+        db.commit()
+        assert record.status == "draft"
+
+    def test_approved_status_accepted(self, db: Session) -> None:
+        record = create_draft(
+            db,
+            post_text="Test post.",
+            preset_id="prof_short_agree",
+            prompt_text="Prompt.",
+            created_date=_NOW,
+        )
+        db.commit()
+        approved = approve_reply(
+            db,
+            record.id,
+            final_reply="Final.",
+            approved_at=_LATER,
+        )
+        db.commit()
+        assert approved.status == "approved"
+
+    def test_invalid_status_rejected_by_db(self, db: Session) -> None:
+        """AC4: Invalid status values are rejected."""
+        from sqlalchemy.exc import IntegrityError
+
+        record = ReplyRecord(
+            post_text="Test.",
+            preset_id="prof_short_agree",
+            prompt_text="Prompt.",
+            created_date=_NOW,
+            status="invalid_status",
+        )
+        db.add(record)
+        with pytest.raises(IntegrityError):
+            db.flush()
+        db.rollback()
+
+
+# ---------------------------------------------------------------------------
+# Story 3.1: Schema hardening — server default
+# ---------------------------------------------------------------------------
+
+
+class TestServerDefault:
+    def test_status_defaults_to_draft(self, db: Session) -> None:
+        """Status column has server_default='draft'."""
+        result = db.execute(
+            text("PRAGMA table_info('reply_records')")
+        )
+        columns = {row[1]: row for row in result.fetchall()}
+        status_col = columns["status"]
+        # PRAGMA table_info: (cid, name, type, notnull, dflt_value, pk)
+        assert status_col[4] == "'draft'"
+
+
+# ---------------------------------------------------------------------------
+# Story 3.1: Fresh install smoke test
+# ---------------------------------------------------------------------------
+
+
+class TestFreshInstall:
+    def test_create_all_on_fresh_db(self) -> None:
+        """AC1: Fresh install creates table successfully."""
+        eng = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(eng)
+        insp = inspect(eng)
+        assert "reply_records" in insp.get_table_names()
+        eng.dispose()
+
+    def test_full_lifecycle_on_fresh_db(self) -> None:
+        """Smoke test: create → update → approve on fresh DB."""
+        eng = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(eng)
+        sess = sessionmaker(bind=eng, expire_on_commit=False)()
+
+        record = create_draft(
+            sess,
+            post_text="Lifecycle test.",
+            preset_id="prof_short_agree",
+            prompt_text="Prompt.",
+            created_date=_NOW,
+        )
+        sess.commit()
+        assert record.status == "draft"
+
+        update_generated_reply(
+            sess,
+            record.id,
+            generated_reply="Generated.",
+            generated_at=_LATER,
+        )
+        sess.commit()
+
+        approved = approve_reply(
+            sess,
+            record.id,
+            final_reply="Final.",
+            approved_at=_EVEN_LATER,
+        )
+        sess.commit()
+        assert approved.status == "approved"
+
+        sess.close()
+        eng.dispose()
