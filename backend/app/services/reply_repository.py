@@ -124,6 +124,73 @@ def approve_reply(
     return record
 
 
+DEFAULT_PAGE_SIZE = 20
+
+
+def list_records(
+    db: Session,
+    *,
+    status: str | None = None,
+    author_name: str | None = None,
+    created_after: datetime | None = None,
+    created_before: datetime | None = None,
+    offset: int = 0,
+    limit: int = DEFAULT_PAGE_SIZE,
+) -> list[ReplyRecord]:
+    """List ReplyRecords with optional filters, ordered by created_date DESC.
+
+    Args:
+        status: Filter by exact status (``"draft"`` or ``"approved"``).
+        author_name: Filter by substring match (case-insensitive).
+        created_after: Inclusive lower bound on ``created_date``.
+        created_before: Inclusive upper bound on ``created_date``.
+        offset: Number of records to skip (for pagination).
+        limit: Maximum records to return (default 20).
+    """
+    query = db.query(ReplyRecord).order_by(ReplyRecord.created_date.desc())
+
+    if status is not None:
+        query = query.filter(ReplyRecord.status == status)
+
+    if author_name is not None:
+        query = query.filter(
+            ReplyRecord.author_name.ilike(f"%{author_name}%")
+        )
+
+    if created_after is not None:
+        query = query.filter(ReplyRecord.created_date >= created_after)
+
+    if created_before is not None:
+        query = query.filter(ReplyRecord.created_date <= created_before)
+
+    return list(query.offset(offset).limit(limit).all())
+
+
+def count_records(
+    db: Session,
+    *,
+    status: str | None = None,
+    author_name: str | None = None,
+    created_after: datetime | None = None,
+    created_before: datetime | None = None,
+) -> int:
+    """Return total count matching the same filters as :func:`list_records`."""
+    query = db.query(ReplyRecord)
+
+    if status is not None:
+        query = query.filter(ReplyRecord.status == status)
+    if author_name is not None:
+        query = query.filter(
+            ReplyRecord.author_name.ilike(f"%{author_name}%")
+        )
+    if created_after is not None:
+        query = query.filter(ReplyRecord.created_date >= created_after)
+    if created_before is not None:
+        query = query.filter(ReplyRecord.created_date <= created_before)
+
+    return query.count()
+
+
 def get_by_id(db: Session, record_id: int) -> ReplyRecord:
     """Fetch a ReplyRecord by primary key.
 
