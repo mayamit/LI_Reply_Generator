@@ -63,6 +63,10 @@ tests/                   # pytest tests
 | `make format`    | Auto-fix lint issues + format code   |
 | `make migrate`   | Apply Alembic migrations             |
 
+## Prompt Builder
+
+The deterministic prompt assembly module lives at `backend/app/services/prompt_builder.py`. Run its tests with `pytest tests/test_prompt_builder.py -v`.
+
 ## Database
 
 The SQLite database lives at `data/app.db`. This directory is gitignored.
