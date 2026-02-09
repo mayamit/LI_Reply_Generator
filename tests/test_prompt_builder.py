@@ -210,7 +210,7 @@ class TestPromptContent:
     def test_no_hashtags_instruction(self) -> None:
         payload = _make_payload()
         text, _ = build_prompt(payload)
-        assert "no hashtags" in text.lower()
+        assert "hashtags" in text.lower()
 
     def test_metadata_includes_prompt_length(self) -> None:
         payload = _make_payload()

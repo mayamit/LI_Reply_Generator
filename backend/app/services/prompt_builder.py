@@ -103,12 +103,12 @@ def build_prompt(
     sections: list[str] = []
 
     # ── 1. Role / instructions ──────────────────────────────────────────
-    sections.append(
+    role_lines = (
         "You are a LinkedIn reply assistant. Write a reply to the post below.\n"
         "The reply must be professional, authentic, and non-generic.\n"
-        "Write in a natural LinkedIn comment style — no preamble, no quotes,\n"
-        "no hashtags unless explicitly requested."
+        "Write in a natural LinkedIn comment style — no preamble, no quotes."
     )
+    sections.append(role_lines)
 
     # ── 2. Preset directives ────────────────────────────────────────────
     length_line = _LENGTH_GUIDANCE.get(preset.length_bucket, "")
@@ -147,7 +147,10 @@ def build_prompt(
     sections.append("\n".join(context_parts))
 
     # ── 4. Output requirements ──────────────────────────────────────────
-    sections.append("Return only the reply text. No quotes, no preamble, no hashtags.")
+    output_line = "Return only the reply text. No quotes, no preamble."
+    if not preset.allow_hashtags:
+        output_line += " Do not include hashtags."
+    sections.append(output_line)
 
     # ── Assemble ────────────────────────────────────────────────────────
     prompt_text = normalize_whitespace("\n\n".join(sections))
