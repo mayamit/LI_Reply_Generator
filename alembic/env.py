@@ -3,10 +3,10 @@
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import pool
-
 from backend.app.db.base import Base
 from backend.app.db.engine import engine
+from backend.app.models.reply_record import ReplyRecord  # noqa: F401
+from sqlalchemy import pool
 
 config = context.config
 if config.config_file_name is not None:
