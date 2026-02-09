@@ -1,4 +1,4 @@
-.PHONY: install run-api run-ui test lint format migrate
+.PHONY: install run-api run-ui test lint format migrate migrate-check
 
 install:
 	pip install -e ".[dev]"
@@ -22,3 +22,6 @@ format:
 
 migrate:
 	alembic upgrade head
+
+migrate-check:
+	python -c "from backend.app.db.migrations import check_schema_current; exit(0 if check_schema_current() else 1)"

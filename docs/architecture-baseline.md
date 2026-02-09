@@ -70,15 +70,32 @@ Settings are resolved via `pydantic-settings` in this order (highest wins):
 alembic revision --autogenerate -m "description"
 
 # Run migrations manually:
-alembic upgrade head
+make migrate          # or: alembic upgrade head
+
+# Check if DB is at head (CI-friendly, exits 1 on drift):
+make migrate-check
 
 # Check current revision:
 alembic current
 ```
 
+### Auto-upgrade at startup
+
+- `run_migrations()` is called during FastAPI lifespan startup.
+- If the DB is already at head, the function returns immediately (no-op).
+- If migrations are needed, `alembic upgrade head` runs automatically.
+
+### Schema drift detection
+
+- `check_schema_current()` compares the DB revision against the script head.
+- Returns `False` and logs `db_schema_drift` if the DB is behind.
+- Use `make migrate-check` in CI to fail fast on drift.
+
 ### Failure handling
 
-- Migration failures are logged as `db_migration_failed` with full traceback.
+- Migration failures raise `MigrationError` with the current revision,
+  target, and the underlying error message.
+- Failures are logged as `db_migration_failed` with full traceback.
 - The application will **not start** if migrations fail.
 
 ---

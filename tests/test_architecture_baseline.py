@@ -184,15 +184,19 @@ class TestFailureCategorization:
         assert EVENT_DB_READ_FAILED == "db_read_failed"
 
     def test_migration_failure_logged_as_error(self) -> None:
-        from backend.app.db.migrations import run_migrations
+        from backend.app.db.migrations import MigrationError, run_migrations
 
         with (
+            patch(
+                "backend.app.db.migrations.get_current_revision",
+                return_value="fake_old",
+            ),
             patch(
                 "backend.app.db.migrations.command.upgrade",
                 side_effect=RuntimeError("simulated migration failure"),
             ),
             patch("backend.app.db.migrations.logger") as mock_logger,
-            pytest.raises(RuntimeError, match="simulated"),
+            pytest.raises(MigrationError, match="simulated"),
         ):
             run_migrations()
 
