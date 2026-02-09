@@ -1,0 +1,46 @@
+[project]
+name = "li-reply-generator"
+version = "0.1.0"
+description = "LinkedIn Reply Generator – local-first AI-powered reply drafting tool"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+dependencies = [
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.34,<1",
+    "streamlit>=1.41,<2",
+    "sqlalchemy>=2.0,<3",
+    "alembic>=1.14,<2",
+    "pydantic-settings>=2.7,<3",
+    "python-dotenv>=1.0,<2",
+    "httpx>=0.28,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8,<9",
+    "ruff>=0.9,<1",
+    "mypy>=1.14,<2",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["backend*"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 99
+src = ["backend"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["backend"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true

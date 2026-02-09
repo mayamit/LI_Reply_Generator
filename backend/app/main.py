@@ -1,0 +1,30 @@
+"""FastAPI application entry point."""
+
+import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+
+from backend.app.api.routes.health import router as health_router
+from backend.app.core.logging import setup_logging
+
+setup_logging()
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    logger.info("LI Reply Generator API starting up")
+    yield
+    logger.info("LI Reply Generator API shutting down")
+
+
+app = FastAPI(
+    title="LI Reply Generator API",
+    version="0.1.0",
+    description="Backend API for the LinkedIn Reply Generator.",
+    lifespan=lifespan,
+)
+
+app.include_router(health_router, tags=["health"])
