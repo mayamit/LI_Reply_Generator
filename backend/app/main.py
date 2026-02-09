@@ -15,18 +15,14 @@ from backend.app.core.settings import settings
 from backend.app.db.migrations import run_migrations
 from backend.app.models.presets import validate_presets
 
-setup_logging()
+setup_logging(level=getattr(logging, settings.log_level.upper(), logging.INFO))
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logger.info("app_start")
-    logger.info(
-        "config_loaded: db_path=%s debug=%s",
-        settings.app_db_path,
-        settings.debug,
-    )
+    logger.info("config_loaded: %s", settings.safe_dump())
     run_migrations()
     validate_presets()
     logger.info("LI Reply Generator API ready")

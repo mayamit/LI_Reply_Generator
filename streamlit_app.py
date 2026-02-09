@@ -6,6 +6,7 @@ import logging
 import httpx
 import streamlit as st
 import streamlit.components.v1 as components
+from backend.app.core.settings import settings
 from backend.app.models.post_context import PostContextInput
 from backend.app.models.presets import get_preset_description, get_preset_labels
 from backend.app.services.validation import validate_and_build_payload
@@ -13,7 +14,7 @@ from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 
-API_BASE = "http://127.0.0.1:8000"
+API_BASE = f"http://{settings.api_host}:{settings.api_port}"
 
 
 def _copy_to_clipboard(text: str) -> None:
@@ -40,6 +41,12 @@ def _copy_to_clipboard(text: str) -> None:
 
 st.set_page_config(page_title="LI Reply Generator", layout="centered")
 st.title("LinkedIn Reply Generator")
+
+if not settings.is_llm_configured:
+    st.warning(
+        "LLM is not configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY "
+        "in your environment or .env file to enable reply generation."
+    )
 
 # --- Session state defaults ---
 if "reply_text" not in st.session_state:
