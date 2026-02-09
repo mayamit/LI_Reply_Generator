@@ -19,5 +19,10 @@ class Settings(BaseSettings):
     database_url: str = f"sqlite:///{_PROJECT_ROOT / 'data' / 'app.db'}"
     debug: bool = False
 
+    # LLM provider keys (at most one should be set)
+    anthropic_api_key: str | None = None
+    openai_api_key: str | None = None
+    llm_timeout_seconds: int = 30
+
 
 settings = Settings()

@@ -67,6 +67,17 @@ tests/                   # pytest tests
 
 The deterministic prompt assembly module lives at `backend/app/services/prompt_builder.py`. Run its tests with `pytest tests/test_prompt_builder.py -v`.
 
+## LLM Integration
+
+The LLM client abstraction lives at `backend/app/services/llm_client.py`. It auto-selects a provider based on env vars:
+
+| Variable | Provider |
+|---|---|
+| `ANTHROPIC_API_KEY` | Anthropic (preferred) |
+| `OPENAI_API_KEY` | OpenAI (fallback) |
+| `LLM_TIMEOUT_SECONDS` | Request timeout (default: 30) |
+| *(none set)* | MockProvider (returns canned reply) |
+
 ## Database
 
 The SQLite database lives at `data/app.db`. This directory is gitignored.

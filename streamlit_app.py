@@ -1,4 +1,4 @@
-"""Streamlit UI for LI Reply Generator — Story 1.1: Post Context Capture."""
+"""Streamlit UI for LI Reply Generator — Stories 1.1–1.3."""
 
 import streamlit as st
 from pydantic import ValidationError
@@ -49,7 +49,7 @@ with st.form("post_context_form"):
     article_text = st.text_area("Linked article text (if any)", height=100)
     image_ref = st.text_input("Image reference / alt text")
 
-    submitted = st.form_submit_button("Validate & Preview")
+    submitted = st.form_submit_button("Validate & Generate Reply")
 
 if submitted:
     preset_id = label_to_id[selected_label]
@@ -87,11 +87,54 @@ if submitted:
         st.warning(w)
 
     st.success("Input validated successfully!")
-    with st.expander("Validated Payload", expanded=True):
+    with st.expander("Validated Payload"):
         st.json(payload.model_dump())
 
-st.divider()
+    # --- Call generate endpoint ---
+    st.divider()
+    st.subheader("Generated Reply")
 
-# --- Placeholder for future stories ---
-st.subheader("Generated Reply")
-st.info("Reply generation is not yet implemented. This is a placeholder for Story 1.3.")
+    import httpx
+
+    with st.spinner("Generating reply..."):
+        try:
+            resp = httpx.post(
+                f"{API_BASE}/api/v1/generate",
+                json={"context": ctx.model_dump(), "preset_id": preset_id},
+                timeout=60,
+            )
+        except Exception as exc:
+            st.error(f"Could not reach API: {exc}")
+            st.stop()
+
+    if resp.status_code == 503:
+        st.warning("LLM not configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY in .env.")
+        st.stop()
+
+    if resp.status_code != 200:
+        st.error(f"API error ({resp.status_code}): {resp.text}")
+        st.stop()
+
+    data = resp.json()
+    result = data["result"]
+
+    if result["status"] == "success":
+        st.text_area("Reply", value=result["reply_text"], height=200, disabled=True)
+        st.caption(
+            f"Model: {result.get('model_id', 'N/A')} | "
+            f"Latency: {result.get('latency_ms', 'N/A')}ms"
+        )
+    else:
+        msg = result.get("user_message", "Unknown error")
+        if result.get("retryable"):
+            st.warning(f"{msg} (retryable — try again)")
+        else:
+            st.error(msg)
+
+    if data.get("prompt_metadata"):
+        with st.expander("Prompt Metadata"):
+            st.json(data["prompt_metadata"])
+else:
+    st.divider()
+    st.subheader("Generated Reply")
+    st.info("Submit the form above to generate a reply.")
