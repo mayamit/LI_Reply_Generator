@@ -158,7 +158,7 @@ def build_prompt(
     metadata["prompt_length"] = len(prompt_text)
 
     logger.info(
-        "Prompt assembled: preset_id=%s length=%d",
+        "prompt_assembled: preset_id=%s length=%d",
         preset.id,
         len(prompt_text),
     )

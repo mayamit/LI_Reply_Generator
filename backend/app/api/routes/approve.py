@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from backend.app.core.logging import log_event
 from backend.app.db.session import get_db
 from backend.app.models.llm import ApproveRequest, ApproveResponse
 from backend.app.services.reply_repository import (
@@ -39,10 +40,13 @@ def approve(body: ApproveRequest, db: Session = Depends(get_db)) -> ApproveRespo
         raise HTTPException(status_code=422, detail=str(exc))
     except Exception:
         db.rollback()
-        logger.exception("db_write_failed: operation=approve_reply")
+        log_event(
+            logger, "exception", "db_write_failed",
+            operation="approve_reply", error_category="db",
+        )
         raise HTTPException(status_code=500, detail="Failed to save approval. Please retry.")
 
-    logger.info("reply_approved: record_id=%d", record.id)
+    log_event(logger, "info", "reply_approved", record_id=record.id)
 
     return ApproveResponse(
         record_id=record.id,

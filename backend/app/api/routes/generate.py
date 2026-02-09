@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from backend.app.core.logging import log_event
 from backend.app.db.session import get_db
 from backend.app.models.llm import GenerateRequest, GenerateResponse, LLMFailure, LLMSuccess
 from backend.app.models.post_context import PostContextPayload
@@ -76,7 +77,10 @@ def generate(body: GenerateRequest, db: Session = Depends(get_db)) -> GenerateRe
         record_id = record.id
     except Exception:
         db.rollback()
-        logger.exception("db_write_failed: operation=create_draft")
+        log_event(
+            logger, "exception", "db_write_failed",
+            operation="create_draft", error_category="db",
+        )
         # Non-blocking: continue with generation even if persistence fails
 
     # 4. Generate reply via LLM
@@ -96,7 +100,10 @@ def generate(body: GenerateRequest, db: Session = Depends(get_db)) -> GenerateRe
             db.commit()
         except Exception:
             db.rollback()
-            logger.exception("db_write_failed: operation=update_generated_reply")
+            log_event(
+                logger, "exception", "db_write_failed",
+                operation="update_generated_reply", error_category="db",
+            )
             # Non-blocking: user still gets the reply text
 
     # 6. Return response
