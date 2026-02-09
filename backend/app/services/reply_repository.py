@@ -191,6 +191,18 @@ def count_records(
     return query.count()
 
 
+def delete_record(db: Session, record_id: int) -> None:
+    """Permanently delete a ReplyRecord by primary key.
+
+    Raises:
+        RecordNotFoundError: If no record with *record_id* exists.
+    """
+    record = get_by_id(db, record_id)
+    db.delete(record)
+    db.flush()
+    logger.info("reply_record_deleted: id=%d", record_id)
+
+
 def get_by_id(db: Session, record_id: int) -> ReplyRecord:
     """Fetch a ReplyRecord by primary key.
 

@@ -5,6 +5,7 @@ from backend.app.db.session import SessionLocal
 from backend.app.models.presets import get_preset_labels
 from backend.app.services.reply_repository import (
     RecordNotFoundError,
+    delete_record,
     get_by_id,
 )
 
@@ -121,7 +122,42 @@ if record.llm_model_identifier or record.llm_request_id:
         if record.llm_request_id:
             st.write(f"**Request ID:** {record.llm_request_id}")
 
-# --- Navigation ---
+# --- Delete (AC1: confirmation prompt, AC2: permanent deletion) ---
 st.divider()
-if st.button("← Back to History"):
-    st.switch_page("pages/1_History.py")
+col_back, col_delete = st.columns([1, 1])
+
+with col_back:
+    if st.button("← Back to History"):
+        st.switch_page("pages/1_History.py")
+
+with col_delete:
+    if st.button("Delete Record", type="secondary"):
+        st.session_state.confirm_delete = True
+
+if st.session_state.get("confirm_delete"):
+    st.warning(
+        f"Are you sure you want to permanently delete Record #{record.id}? "
+        "This cannot be undone."
+    )
+    col_yes, col_no = st.columns(2)
+    with col_yes:
+        if st.button("Yes, delete", type="primary"):
+            db = SessionLocal()
+            try:
+                delete_record(db, record.id)
+                db.commit()
+                st.session_state.confirm_delete = False
+                st.session_state.detail_record_id = None
+                st.success("Record deleted.")
+                st.switch_page("pages/1_History.py")
+            except RecordNotFoundError:
+                st.error("Record not found — it may have already been deleted.")
+            except Exception as exc:
+                db.rollback()
+                st.error(f"Deletion failed: {exc}")
+            finally:
+                db.close()
+    with col_no:
+        if st.button("Cancel"):
+            st.session_state.confirm_delete = False
+            st.rerun()
