@@ -155,9 +155,21 @@ if submitted:
     try:
         ctx = PostContextInput(**raw)
     except ValidationError as exc:
+        _FIELD_HINTS: dict[str, str] = {
+            "post_text": "Paste the LinkedIn post text (at least 10 characters).",
+            "article_text": "Shorten the article text or remove unnecessary sections.",
+            "author_profile_url": "Enter a shorter or valid URL.",
+            "post_url": "Enter a shorter or valid URL.",
+            "image_ref": "Keep the image reference under 2,000 characters.",
+            "author_name": "Keep the author name under 200 characters.",
+        }
         for err in exc.errors():
             field = " -> ".join(str(loc) for loc in err["loc"])
-            st.error(f"**{field}**: {err['msg']}")
+            hint = _FIELD_HINTS.get(field, "")
+            msg = f"**{field}**: {err['msg']}"
+            if hint:
+                msg += f" — {hint}"
+            st.error(msg)
         st.session_state.generating = False
         st.stop()
 

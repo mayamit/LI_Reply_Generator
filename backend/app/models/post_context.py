@@ -1,6 +1,23 @@
 """Pydantic models for capturing and validating LinkedIn post context."""
 
+import re
+
 from pydantic import BaseModel, Field, field_validator
+
+# Soft warning threshold for article_text length.
+# Inputs above this get a warning; the hard limit (50k) still applies.
+ARTICLE_TEXT_WARN_LENGTH = 10_000
+
+_MULTI_WHITESPACE = re.compile(r"[^\S\n]+")
+_MULTI_NEWLINES = re.compile(r"\n{3,}")
+
+
+def normalize_whitespace(text: str) -> str:
+    """Collapse runs of spaces/tabs (preserving single newlines)."""
+    text = text.strip()
+    text = _MULTI_WHITESPACE.sub(" ", text)
+    text = _MULTI_NEWLINES.sub("\n\n", text)
+    return text
 
 
 class PostContextInput(BaseModel):
@@ -16,12 +33,19 @@ class PostContextInput(BaseModel):
 
     @field_validator(
         "post_text",
-        "author_name",
         "article_text",
         mode="before",
     )
     @classmethod
-    def strip_text(cls, v: str | None) -> str | None:
+    def normalize_text(cls, v: str | None) -> str | None:
+        """Strip and normalize whitespace in text fields."""
+        if isinstance(v, str):
+            return normalize_whitespace(v)
+        return v
+
+    @field_validator("author_name", mode="before")
+    @classmethod
+    def strip_author_name(cls, v: str | None) -> str | None:
         if isinstance(v, str):
             return v.strip()
         return v
