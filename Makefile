@@ -1,4 +1,4 @@
-.PHONY: install run-api run-ui test lint format migrate migrate-check
+.PHONY: install run-api run-ui test lint format check migrate migrate-check
 
 install:
 	pip install -e ".[dev]"
@@ -13,12 +13,14 @@ test:
 	pytest -v
 
 lint:
-	ruff check backend/ tests/
-	ruff format --check backend/ tests/
+	ruff check backend/ tests/ streamlit_app.py pages/
+	ruff format --check backend/ tests/ streamlit_app.py pages/
 
 format:
-	ruff check --fix backend/ tests/
-	ruff format backend/ tests/
+	ruff check --fix backend/ tests/ streamlit_app.py pages/
+	ruff format backend/ tests/ streamlit_app.py pages/
+
+check: lint test migrate-check
 
 migrate:
 	alembic upgrade head

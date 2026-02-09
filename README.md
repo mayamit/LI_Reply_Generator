@@ -38,30 +38,51 @@ backend/
     main.py              # FastAPI entry point
     core/
       settings.py        # pydantic-settings config (.env)
-      logging.py         # structured logging setup
+      logging.py         # structured logging + event taxonomy
     db/
       engine.py          # SQLAlchemy engine (SQLite)
       session.py         # session factory + FastAPI dependency
       base.py            # declarative base for ORM models
+      migrations.py      # programmatic Alembic runner
+    models/
+      reply_record.py    # ReplyRecord ORM model
+      presets.py         # reply presets (tone, length, intent)
+      post_context.py    # input/output validation models
+      llm.py             # LLM request/response models
+    services/
+      llm_client.py      # LLM provider abstraction
+      prompt_builder.py  # deterministic prompt assembly
+      reply_repository.py # CRUD for reply records
+      validation.py      # shared input validation
     api/routes/
       health.py          # GET /health
-streamlit_app.py         # Streamlit UI
+      post_context.py    # POST /api/v1/post-context
+      generate.py        # POST /api/v1/generate
+      approve.py         # POST /api/v1/approve
+streamlit_app.py         # Streamlit UI (main page)
+pages/
+  1_History.py           # History list page
+  2_Detail.py            # Record detail page
 alembic/                 # Alembic migrations
+docs/
+  architecture-baseline.md # Architecture conventions
 data/                    # SQLite DB file (gitignored)
 tests/                   # pytest tests
 ```
 
 ## Common Commands
 
-| Command          | Description                          |
-|------------------|--------------------------------------|
-| `make install`   | Install project + dev dependencies   |
-| `make run-api`   | Start FastAPI dev server             |
-| `make run-ui`    | Start Streamlit UI                   |
-| `make test`      | Run pytest                           |
-| `make lint`      | Run ruff linter + format check       |
-| `make format`    | Auto-fix lint issues + format code   |
-| `make migrate`   | Apply Alembic migrations             |
+| Command              | Description                              |
+|----------------------|------------------------------------------|
+| `make install`       | Install project + dev dependencies       |
+| `make run-api`       | Start FastAPI dev server                 |
+| `make run-ui`        | Start Streamlit UI                       |
+| `make test`          | Run pytest                               |
+| `make lint`          | Run ruff linter + format check           |
+| `make format`        | Auto-fix lint issues + format code       |
+| `make check`         | Run lint + test + migrate-check together |
+| `make migrate`       | Apply Alembic migrations                 |
+| `make migrate-check` | Verify DB schema is at head (CI-ready)   |
 
 ## Prompt Builder
 
