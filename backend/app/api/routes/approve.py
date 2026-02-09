@@ -1,11 +1,13 @@
 """POST /api/v1/approve — approve a draft reply (idempotent)."""
 
 import logging
+import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from backend.app.core.errors import normalize_db_error
 from backend.app.core.logging import log_event
 from backend.app.db.session import get_db
 from backend.app.models.llm import ApproveRequest, ApproveResponse
@@ -23,6 +25,8 @@ router = APIRouter()
 @router.post("/api/v1/approve", response_model=ApproveResponse)
 def approve(body: ApproveRequest, db: Session = Depends(get_db)) -> ApproveResponse:
     """Approve a draft reply record. Idempotent — safe to call multiple times."""
+    correlation_id = str(uuid.uuid4())
+
     if not body.final_reply or not body.final_reply.strip():
         raise HTTPException(status_code=422, detail="final_reply must be non-empty")
 
@@ -38,13 +42,12 @@ def approve(body: ApproveRequest, db: Session = Depends(get_db)) -> ApproveRespo
         raise HTTPException(status_code=404, detail=f"Record not found: {body.record_id}")
     except InvalidTransitionError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
-    except Exception:
+    except Exception as exc:
         db.rollback()
-        log_event(
-            logger, "exception", "db_write_failed",
-            operation="approve_reply", error_category="db",
+        error = normalize_db_error(
+            exc, operation="approve_reply", correlation_id=correlation_id,
         )
-        raise HTTPException(status_code=500, detail="Failed to save approval. Please retry.")
+        raise HTTPException(status_code=error.http_status, detail=error.user_message)
 
     log_event(logger, "info", "reply_approved", record_id=record.id)
 

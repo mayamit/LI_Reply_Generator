@@ -1,12 +1,13 @@
 """POST /api/v1/generate — build prompt, call LLM, persist draft, return reply."""
 
 import logging
+import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from backend.app.core.logging import log_event
+from backend.app.core.errors import normalize_db_error
 from backend.app.db.session import get_db
 from backend.app.models.llm import GenerateRequest, GenerateResponse, LLMFailure, LLMSuccess
 from backend.app.models.post_context import PostContextPayload
@@ -24,6 +25,8 @@ router = APIRouter()
 @router.post("/api/v1/generate", response_model=GenerateResponse)
 def generate(body: GenerateRequest, db: Session = Depends(get_db)) -> GenerateResponse:
     """Validate input, build prompt, persist draft, call LLM, return result."""
+    correlation_id = str(uuid.uuid4())
+
     # 1. Validate context + resolve preset
     payload_result, errors = validate_and_build_payload(body.context)
     if errors:
@@ -75,12 +78,9 @@ def generate(body: GenerateRequest, db: Session = Depends(get_db)) -> GenerateRe
         )
         db.commit()
         record_id = record.id
-    except Exception:
+    except Exception as exc:
         db.rollback()
-        log_event(
-            logger, "exception", "db_write_failed",
-            operation="create_draft", error_category="db",
-        )
+        normalize_db_error(exc, operation="create_draft", correlation_id=correlation_id)
         # Non-blocking: continue with generation even if persistence fails
 
     # 4. Generate reply via LLM
@@ -98,11 +98,11 @@ def generate(body: GenerateRequest, db: Session = Depends(get_db)) -> GenerateRe
                 llm_request_id=result.request_id,
             )
             db.commit()
-        except Exception:
+        except Exception as exc:
             db.rollback()
-            log_event(
-                logger, "exception", "db_write_failed",
-                operation="update_generated_reply", error_category="db",
+            normalize_db_error(
+                exc, operation="update_generated_reply",
+                correlation_id=correlation_id,
             )
             # Non-blocking: user still gets the reply text
 

@@ -4,7 +4,8 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from backend.app.api.routes.approve import router as approve_router
 from backend.app.api.routes.generate import router as generate_router
@@ -38,6 +39,18 @@ app = FastAPI(
     description="Backend API for the LinkedIn Reply Generator.",
     lifespan=lifespan,
 )
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Catch-all handler: log details, return safe generic message (AC4)."""
+    from backend.app.core.errors import normalize_unknown_error
+
+    error = normalize_unknown_error(exc, operation=f"{request.method} {request.url.path}")
+    return JSONResponse(
+        status_code=error.http_status,
+        content={"detail": error.user_message},
+    )
+
 
 app.include_router(health_router, tags=["health"])
 app.include_router(post_context_router, tags=["post-context"])
