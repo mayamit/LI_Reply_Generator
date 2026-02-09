@@ -27,6 +27,7 @@ class ReplyPreset(BaseModel):
     tone: str
     length_bucket: LengthBucket
     intent: str
+    description: str | None = None
     guidance_bullets: list[str] | None = None
     allow_hashtags: bool = False
     is_default: bool = False
@@ -37,6 +38,10 @@ DEFAULT_PRESETS: list[ReplyPreset] = [
     ReplyPreset(
         id="prof_short_agree",
         label="Professional – Short Agreement",
+        description=(
+            "A brief, professional reply that agrees with the "
+            "author's point and adds a supporting observation."
+        ),
         tone="professional",
         length_bucket=LengthBucket.short,
         intent="agree",
@@ -50,6 +55,10 @@ DEFAULT_PRESETS: list[ReplyPreset] = [
     ReplyPreset(
         id="casual_medium_add",
         label="Casual – Medium Add-On",
+        description=(
+            "A conversational, medium-length reply that adds a "
+            "new angle or personal experience to the discussion."
+        ),
         tone="casual",
         length_bucket=LengthBucket.medium,
         intent="add_perspective",
@@ -62,6 +71,10 @@ DEFAULT_PRESETS: list[ReplyPreset] = [
     ReplyPreset(
         id="supportive_short_encourage",
         label="Supportive – Short Encouragement",
+        description=(
+            "A short, warm reply that appreciates the post and "
+            "encourages the author to keep sharing."
+        ),
         tone="supportive",
         length_bucket=LengthBucket.short,
         intent="encourage",
@@ -74,6 +87,10 @@ DEFAULT_PRESETS: list[ReplyPreset] = [
     ReplyPreset(
         id="contrarian_medium_challenge",
         label="Contrarian – Medium Challenge",
+        description=(
+            "A respectful, medium-length reply that presents an "
+            "alternative viewpoint backed by reasoning."
+        ),
         tone="contrarian",
         length_bucket=LengthBucket.medium,
         intent="challenge",
@@ -86,6 +103,10 @@ DEFAULT_PRESETS: list[ReplyPreset] = [
     ReplyPreset(
         id="prof_medium_insight",
         label="Professional – Medium Insight",
+        description=(
+            "A professional, medium-length reply that shares a "
+            "relevant insight or data point tied to the original post."
+        ),
         tone="professional",
         length_bucket=LengthBucket.medium,
         intent="share_insight",
@@ -98,6 +119,10 @@ DEFAULT_PRESETS: list[ReplyPreset] = [
     ReplyPreset(
         id="casual_short_react",
         label="Casual – Short Reaction",
+        description=(
+            "A quick, genuine reaction in a casual "
+            "and conversational tone."
+        ),
         tone="casual",
         length_bucket=LengthBucket.short,
         intent="react",
@@ -110,6 +135,10 @@ DEFAULT_PRESETS: list[ReplyPreset] = [
     ReplyPreset(
         id="supportive_medium_story",
         label="Supportive – Medium Personal Story",
+        description=(
+            "A medium-length reply that relates a personal experience "
+            "with empathy and connection to the author."
+        ),
         tone="supportive",
         length_bucket=LengthBucket.medium,
         intent="share_experience",
@@ -122,6 +151,10 @@ DEFAULT_PRESETS: list[ReplyPreset] = [
     ReplyPreset(
         id="prof_long_analysis",
         label="Professional – Long Analysis",
+        description=(
+            "A detailed, structured analysis that references the "
+            "original post and offers a clear recommendation."
+        ),
         tone="professional",
         length_bucket=LengthBucket.long,
         intent="analyze",
@@ -141,9 +174,21 @@ def get_preset_by_id(preset_id: str) -> ReplyPreset | None:
     return _PRESET_MAP.get(preset_id)
 
 
+FALLBACK_DESCRIPTION: str = "No description available for this preset."
+"""Shown in the UI when a preset has no description."""
+
+
 def get_preset_labels() -> dict[str, str]:
     """Return ``{id: label}`` for every available preset."""
     return {p.id: p.label for p in DEFAULT_PRESETS}
+
+
+def get_preset_description(preset_id: str) -> str:
+    """Return the description for *preset_id*, or a fallback message."""
+    preset = _PRESET_MAP.get(preset_id)
+    if preset is None or not preset.description:
+        return FALLBACK_DESCRIPTION
+    return preset.description
 
 
 def get_default_preset() -> ReplyPreset:

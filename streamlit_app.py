@@ -7,7 +7,7 @@ import httpx
 import streamlit as st
 import streamlit.components.v1 as components
 from backend.app.models.post_context import PostContextInput
-from backend.app.models.presets import get_preset_labels
+from backend.app.models.presets import get_preset_description, get_preset_labels
 from backend.app.services.validation import validate_and_build_payload
 from pydantic import ValidationError
 
@@ -69,15 +69,17 @@ st.subheader("Original Post")
 preset_labels = get_preset_labels()
 label_to_id = {label: pid for pid, label in preset_labels.items()}
 
+# Preset selector outside the form so description updates on change
+st.subheader("Reply Preset")
+selected_label = st.selectbox("Choose a reply preset", options=list(label_to_id.keys()))
+st.caption(get_preset_description(label_to_id[selected_label]))
+
 with st.form("post_context_form"):
     post_text = st.text_area(
         "Paste the LinkedIn post you want to reply to",
         height=150,
         help="Required — at least 10 characters.",
     )
-
-    st.subheader("Reply Preset")
-    selected_label = st.selectbox("Choose a reply preset", options=list(label_to_id.keys()))
 
     st.subheader("Optional Context")
     author_name = st.text_input("Author name")
