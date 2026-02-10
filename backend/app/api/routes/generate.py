@@ -92,7 +92,7 @@ def generate(body: GenerateRequest, db: Session = Depends(get_db)) -> GenerateRe
         # Non-blocking: continue with generation even if persistence fails
 
     # 4. Generate reply via LLM
-    result, _ = generate_reply(payload, preset)
+    result, _ = generate_reply(payload, preset, image_data=body.image_data)
 
     # 5. Persist generated reply if we have a record and generation succeeded
     if record_id is not None and isinstance(result, LLMSuccess):

@@ -39,7 +39,7 @@ class LLMProvider(Protocol):
     @property
     def provider_name(self) -> str: ...
 
-    def call(self, prompt_text: str, timeout_seconds: int) -> LLMResult:
+    def call(self, prompt_text: str, timeout_seconds: int, *, image_data: str | None = None) -> LLMResult:
         """Send *prompt_text* to the LLM and return a standardised result."""
         ...
 
@@ -54,7 +54,7 @@ class MockProvider:
 
     provider_name: str = "mock"
 
-    def call(self, prompt_text: str, timeout_seconds: int) -> LLMResult:
+    def call(self, prompt_text: str, timeout_seconds: int, *, image_data: str | None = None) -> LLMResult:
         return LLMSuccess(
             reply_text="This is a mock reply for testing purposes.",
             model_id="mock-v1",
@@ -78,16 +78,33 @@ class AnthropicProvider:
 
         self._client = anthropic.Anthropic(api_key=api_key)
 
-    def call(self, prompt_text: str, timeout_seconds: int) -> LLMResult:
+    def call(self, prompt_text: str, timeout_seconds: int, *, image_data: str | None = None) -> LLMResult:
         import anthropic
 
         request_id = str(uuid.uuid4())
         start = time.monotonic()
+
+        # Build message content — multimodal if image is provided
+        if image_data:
+            content: list[dict] = [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "image/png",
+                        "data": image_data,
+                    },
+                },
+                {"type": "text", "text": prompt_text},
+            ]
+        else:
+            content = prompt_text  # type: ignore[assignment]
+
         try:
             response = self._client.messages.create(
                 model="claude-sonnet-4-5-20250929",
                 max_tokens=1024,
-                messages=[{"role": "user", "content": prompt_text}],
+                messages=[{"role": "user", "content": content}],
                 timeout=float(timeout_seconds),
             )
         except anthropic.AuthenticationError:
@@ -181,15 +198,28 @@ class OpenAIProvider:
 
         self._client = openai.OpenAI(api_key=api_key)
 
-    def call(self, prompt_text: str, timeout_seconds: int) -> LLMResult:
+    def call(self, prompt_text: str, timeout_seconds: int, *, image_data: str | None = None) -> LLMResult:
         import openai
 
         request_id = str(uuid.uuid4())
         start = time.monotonic()
+
+        # Build message content — multimodal if image is provided
+        if image_data:
+            content: list[dict] = [
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{image_data}"},
+                },
+                {"type": "text", "text": prompt_text},
+            ]
+        else:
+            content = prompt_text  # type: ignore[assignment]
+
         try:
             response = self._client.chat.completions.create(
                 model="gpt-4o",
-                messages=[{"role": "user", "content": prompt_text}],
+                messages=[{"role": "user", "content": content}],
                 max_tokens=1024,
                 timeout=float(timeout_seconds),
             )
@@ -303,6 +333,7 @@ def generate_reply(
     preset: ReplyPreset,
     *,
     provider: LLMProvider | None = None,
+    image_data: str | None = None,
 ) -> tuple[LLMResult, dict[str, object]]:
     """Build prompt, call LLM, return ``(result, prompt_metadata)``.
 
@@ -320,15 +351,16 @@ def generate_reply(
 
     # 3. Call LLM
     logger.info(
-        "llm_call_start: correlation_id=%s preset_id=%s provider=%s prompt_length=%d",
+        "llm_call_start: correlation_id=%s preset_id=%s provider=%s prompt_length=%d image=%s",
         correlation_id,
         preset.id,
         provider.provider_name,
         len(prompt_text),
+        bool(image_data),
     )
 
     timeout = settings.llm_timeout_seconds
-    result = provider.call(prompt_text, timeout)
+    result = provider.call(prompt_text, timeout, image_data=image_data)
 
     # 4. Log outcome (never log prompt content or secrets)
     if isinstance(result, LLMSuccess):

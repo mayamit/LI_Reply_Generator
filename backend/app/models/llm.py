@@ -29,6 +29,7 @@ class GenerateRequest(BaseModel):
 
     context: PostContextInput
     preset_id: str | None = None
+    image_data: str | None = None  # base64-encoded image
 
 
 class LLMSuccess(BaseModel):
@@ -61,6 +62,19 @@ class GenerateResponse(BaseModel):
     result: LLMSuccess | LLMFailure = Field(..., discriminator="status")
     prompt_metadata: dict[str, object] | None = None
     record_id: int | None = None
+
+
+class RefineRequest(BaseModel):
+    """Request to refine an existing reply."""
+
+    reply_text: str
+    instruction: str
+
+
+class RefineResponse(BaseModel):
+    """Response after refining a reply."""
+
+    result: LLMSuccess | LLMFailure = Field(..., discriminator="status")
 
 
 class ApproveRequest(BaseModel):

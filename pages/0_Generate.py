@@ -1,9 +1,11 @@
 """Generate Reply page — main input form and reply workflow."""
 
+import base64
 import logging
 
 import httpx
 import streamlit as st
+from streamlit_js_eval import streamlit_js_eval
 from backend.app.models.post_context import PostContextInput
 from backend.app.models.presets import get_preset_description, get_preset_labels
 from backend.app.services.validation import validate_and_build_payload
@@ -142,6 +144,67 @@ st.subheader("Reply Preset")
 selected_label = st.selectbox("Choose a reply preset", options=list(label_to_id.keys()))
 st.caption(get_preset_description(label_to_id[selected_label]))
 
+# --- Image paste (outside form) ---
+st.subheader("Post Image")
+if "pasted_image_b64" not in st.session_state:
+    st.session_state.pasted_image_b64 = None
+
+paste_img_col, clear_img_col = st.columns([1, 1])
+with paste_img_col:
+    if st.button("📋 Paste Image from Clipboard"):
+        st.session_state._clipboard_counter = (
+            st.session_state.get("_clipboard_counter", 0) + 1
+        )
+        st.session_state._paste_image_pending = True
+
+with clear_img_col:
+    if st.session_state.pasted_image_b64 and st.button("Clear Image"):
+        st.session_state.pasted_image_b64 = None
+        st.rerun()
+
+if st.session_state.get("_paste_image_pending"):
+    result = streamlit_js_eval(
+        js_expressions="""
+        (async () => {
+            try {
+                const items = await navigator.clipboard.read();
+                for (const item of items) {
+                    const imageType = item.types.find(t => t.startsWith('image/'));
+                    if (imageType) {
+                        const blob = await item.getType(imageType);
+                        const reader = new FileReader();
+                        return await new Promise((resolve) => {
+                            reader.onloadend = () => resolve(reader.result);
+                            reader.readAsDataURL(blob);
+                        });
+                    }
+                }
+                return 'NO_IMAGE';
+            } catch (e) {
+                return 'ERROR:' + e.message;
+            }
+        })()
+        """,
+        key=f"clipboard_image_{st.session_state.get('_clipboard_counter', 0)}",
+    )
+    if result and isinstance(result, str):
+        st.session_state._paste_image_pending = False
+        if result.startswith("data:image"):
+            # Strip the data URL prefix to get raw base64
+            st.session_state.pasted_image_b64 = result.split(",", 1)[1]
+            st.rerun()
+        elif result == "NO_IMAGE":
+            st.warning("No image found in clipboard. Copy an image first (right-click → Copy Image).")
+        elif result.startswith("ERROR:"):
+            st.warning(f"Could not access clipboard: {result[6:]}. Try right-click → Copy Image first.")
+
+if st.session_state.pasted_image_b64:
+    st.image(
+        base64.b64decode(st.session_state.pasted_image_b64),
+        caption="Pasted image",
+        use_container_width=True,
+    )
+
 with st.form("post_context_form"):
     post_text = st.text_area(
         "Paste the LinkedIn post you want to reply to",
@@ -175,11 +238,6 @@ with st.form("post_context_form"):
         height=100,
         help="Paste the article body if the post links to one (max 50,000 characters).",
     )
-    image_ref = st.text_input(
-        "Image reference / alt text",
-        help="Describe any image attached to the post (max 2,000 characters).",
-    )
-
     st.subheader("Engagement Signals")
     eng_col1, eng_col2 = st.columns(2)
     with eng_col1:
@@ -236,6 +294,9 @@ if submitted:
 
     preset_id = label_to_id[selected_label]
 
+    # Use pasted image from session state
+    image_b64: str | None = st.session_state.get("pasted_image_b64")
+
     # Build raw input dict, omitting empty optional fields
     raw: dict[str, str] = {"post_text": post_text, "preset_id": preset_id}
     for key, val in [
@@ -243,10 +304,11 @@ if submitted:
         ("author_profile_url", author_profile_url),
         ("post_url", post_url),
         ("article_text", article_text),
-        ("image_ref", image_ref),
     ]:
         if val:
             raw[key] = val
+    if image_b64:
+        raw["image_ref"] = "(image attached)"
     for key, val in [
         ("follower_count", follower_count),
         ("like_count", like_count),
@@ -265,7 +327,6 @@ if submitted:
             "article_text": "Shorten the article text or remove unnecessary sections.",
             "author_profile_url": "Enter a shorter or valid URL.",
             "post_url": "Enter a shorter or valid URL.",
-            "image_ref": "Keep the image reference under 2,000 characters.",
             "author_name": "Keep the author name under 200 characters.",
         }
         for err in exc.errors():
@@ -297,9 +358,12 @@ if submitted:
     # --- Call generate endpoint (AC1: spinner during generation) ---
     with st.spinner("Generating reply..."):
         try:
+            generate_body = {"context": ctx.model_dump(), "preset_id": preset_id}
+            if image_b64:
+                generate_body["image_data"] = image_b64
             resp = httpx.post(
                 f"{API_BASE}/api/v1/generate",
-                json={"context": ctx.model_dump(), "preset_id": preset_id},
+                json=generate_body,
                 timeout=60,
             )
         except Exception:
@@ -386,6 +450,58 @@ if st.session_state.reply_text:
     if st.session_state.generation_meta:
         meta = st.session_state.generation_meta
         st.caption(f"Model: {meta['model_id']} | Latency: {meta['latency_ms']}ms")
+
+    # --- Refinement buttons ---
+    if not is_approved and edited_reply and edited_reply.strip():
+        if "refining" not in st.session_state:
+            st.session_state.refining = False
+
+        st.markdown("**Refine this reply:**")
+        _REFINEMENTS = {
+            "more_human": ("Make it more human", "Rewrite this reply to sound more natural, warm, and human — less polished, more conversational."),
+            "more_funny": ("Make it a little funny", "Rewrite this reply to include a touch of humor or wit while keeping it professional and relevant."),
+            "contrasting": ("Add a contrasting view", "Rewrite this reply to include a respectful contrasting or alternative perspective on the topic."),
+            "more_opinionated": ("Make it more opinionated", "Rewrite this reply to take a stronger, more opinionated stance while remaining professional."),
+        }
+        refine_cols = st.columns(len(_REFINEMENTS))
+        for col, (key, (btn_label, instruction)) in zip(refine_cols, _REFINEMENTS.items()):
+            with col:
+                if st.button(
+                    btn_label,
+                    key=f"refine_{key}",
+                    disabled=st.session_state.refining,
+                ):
+                    st.session_state.refining = True
+                    with st.spinner("Refining reply..."):
+                        try:
+                            refine_resp = httpx.post(
+                                f"{API_BASE}/api/v1/refine",
+                                json={
+                                    "reply_text": edited_reply,
+                                    "instruction": instruction,
+                                },
+                                timeout=60,
+                            )
+                        except Exception:
+                            st.session_state.refining = False
+                            st.error("Could not reach API. Try again.")
+                            st.stop()
+
+                    st.session_state.refining = False
+
+                    if refine_resp.status_code == 200:
+                        refine_data = refine_resp.json()
+                        if refine_data["result"]["status"] == "success":
+                            st.session_state.reply_text = refine_data["result"]["reply_text"]
+                            st.session_state.generation_meta = {
+                                "model_id": refine_data["result"].get("model_id", "N/A"),
+                                "latency_ms": refine_data["result"].get("latency_ms", "N/A"),
+                            }
+                            st.rerun()
+                        else:
+                            st.error(refine_data["result"].get("user_message", "Refinement failed."))
+                    else:
+                        st.error(f"Refinement failed: {_safe_error_detail(refine_resp)}")
 
     # --- Action buttons ---
     if is_approved:
