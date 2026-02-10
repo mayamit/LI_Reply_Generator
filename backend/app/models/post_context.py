@@ -81,8 +81,8 @@ class PostContextPayload(BaseModel):
     post_url: str | None = None
     article_text: str | None = None
     image_ref: str | None = None
-    follower_count: int | None = None
-    like_count: int | None = None
-    comment_count: int | None = None
-    repost_count: int | None = None
+    follower_count: int | None = Field(default=None, ge=0)
+    like_count: int | None = Field(default=None, ge=0)
+    comment_count: int | None = Field(default=None, ge=0)
+    repost_count: int | None = Field(default=None, ge=0)
     validation_warnings: list[str] = Field(default_factory=list)
