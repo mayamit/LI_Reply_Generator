@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
+from sqlalchemy import func
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
@@ -241,6 +242,20 @@ def delete_record(db: Session, record_id: int) -> None:
     except OperationalError as exc:
         _handle_operational_error(exc, "delete_record")
     logger.info("reply_record_deleted: id=%d", record_id)
+
+
+def count_by_author(db: Session, author_name: str | None) -> int:
+    """Count all ReplyRecords for an exact author_name match (case-insensitive).
+
+    Returns 0 if *author_name* is ``None``.
+    """
+    if author_name is None:
+        return 0
+    return (
+        db.query(func.count(ReplyRecord.id))
+        .filter(ReplyRecord.author_name.ilike(author_name))
+        .scalar()
+    ) or 0
 
 
 def get_by_id(db: Session, record_id: int) -> ReplyRecord:
