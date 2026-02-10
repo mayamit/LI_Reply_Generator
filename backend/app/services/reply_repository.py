@@ -10,7 +10,7 @@ import json
 import logging
 from datetime import datetime
 
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
@@ -179,6 +179,9 @@ def approve_reply(
 DEFAULT_PAGE_SIZE = 20
 
 
+VALID_SORT_FIELDS = ("created_date", "engagement_score")
+
+
 def list_records(
     db: Session,
     *,
@@ -186,20 +189,38 @@ def list_records(
     author_name: str | None = None,
     created_after: datetime | None = None,
     created_before: datetime | None = None,
+    sort_by: str = "created_date",
     offset: int = 0,
     limit: int = DEFAULT_PAGE_SIZE,
 ) -> list[ReplyRecord]:
-    """List ReplyRecords with optional filters, ordered by created_date DESC.
+    """List ReplyRecords with optional filters and sorting.
 
     Args:
         status: Filter by exact status (``"draft"`` or ``"approved"``).
         author_name: Filter by substring match (case-insensitive).
         created_after: Inclusive lower bound on ``created_date``.
         created_before: Inclusive upper bound on ``created_date``.
+        sort_by: Sort field — ``"created_date"`` (default) or
+            ``"engagement_score"`` (DESC, NULLS LAST).
         offset: Number of records to skip (for pagination).
         limit: Maximum records to return (default 20).
     """
-    query = db.query(ReplyRecord).order_by(ReplyRecord.created_date.desc())
+    query = db.query(ReplyRecord)
+
+    if sort_by == "engagement_score":
+        # NULLS LAST via CASE: NULL → 1 (sorted after 0)
+        nulls_last = case(
+            (ReplyRecord.engagement_score.is_(None), 1),
+            else_=0,
+        )
+        query = query.order_by(
+            nulls_last,
+            ReplyRecord.engagement_score.desc(),
+            ReplyRecord.created_date.desc(),
+            ReplyRecord.id.desc(),
+        )
+    else:
+        query = query.order_by(ReplyRecord.created_date.desc())
 
     if status is not None:
         query = query.filter(ReplyRecord.status == status)
@@ -256,6 +277,42 @@ def delete_record(db: Session, record_id: int) -> None:
     except OperationalError as exc:
         _handle_operational_error(exc, "delete_record")
     logger.info("reply_record_deleted: id=%d", record_id)
+
+
+def list_top_authors(
+    db: Session,
+    *,
+    limit: int = DEFAULT_PAGE_SIZE,
+) -> list[dict]:
+    """Return authors ranked by their highest engagement score.
+
+    Each entry is a dict with ``author_name``, ``max_score``, and
+    ``record_count``.  Rows where ``author_name`` is NULL are excluded.
+    Ties are broken alphabetically by ``author_name``.
+    """
+    rows = (
+        db.query(
+            ReplyRecord.author_name,
+            func.max(ReplyRecord.engagement_score).label("max_score"),
+            func.count(ReplyRecord.id).label("record_count"),
+        )
+        .filter(ReplyRecord.author_name.isnot(None))
+        .group_by(ReplyRecord.author_name)
+        .order_by(
+            func.max(ReplyRecord.engagement_score).desc(),
+            ReplyRecord.author_name.asc(),
+        )
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "author_name": row.author_name,
+            "max_score": row.max_score,
+            "record_count": row.record_count,
+        }
+        for row in rows
+    ]
 
 
 def count_by_author(db: Session, author_name: str | None) -> int:
