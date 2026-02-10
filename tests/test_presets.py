@@ -93,24 +93,24 @@ class TestValidationFailures:
 
     def test_duplicate_ids_detected(self, monkeypatch: pytest.MonkeyPatch) -> None:
         duped = list(DEFAULT_PRESETS) + [DEFAULT_PRESETS[0]]
-        monkeypatch.setattr("backend.app.models.presets.DEFAULT_PRESETS", duped)
+        monkeypatch.setattr("backend.app.models.presets._db_presets", lambda: duped)
         with pytest.raises(RuntimeError, match="Duplicate preset IDs"):
             validate_presets()
 
     def test_no_default_detected(self, monkeypatch: pytest.MonkeyPatch) -> None:
         no_defaults = [p.model_copy(update={"is_default": False}) for p in DEFAULT_PRESETS]
-        monkeypatch.setattr("backend.app.models.presets.DEFAULT_PRESETS", no_defaults)
+        monkeypatch.setattr("backend.app.models.presets._db_presets", lambda: no_defaults)
         with pytest.raises(RuntimeError, match="No preset is marked as default"):
             validate_presets()
 
     def test_multiple_defaults_detected(self, monkeypatch: pytest.MonkeyPatch) -> None:
         multi = [p.model_copy(update={"is_default": True}) for p in DEFAULT_PRESETS]
-        monkeypatch.setattr("backend.app.models.presets.DEFAULT_PRESETS", multi)
+        monkeypatch.setattr("backend.app.models.presets._db_presets", lambda: multi)
         with pytest.raises(RuntimeError, match="Multiple presets marked as default"):
             validate_presets()
 
     def test_empty_library_detected(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr("backend.app.models.presets.DEFAULT_PRESETS", [])
+        monkeypatch.setattr("backend.app.models.presets._db_presets", lambda: [])
         with pytest.raises(RuntimeError, match="empty"):
             validate_presets()
 

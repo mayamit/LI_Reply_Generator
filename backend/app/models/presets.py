@@ -1,8 +1,9 @@
-"""Reply preset definitions — seeded, read-only preset library (EPIC 2).
+"""Reply preset definitions — DB-backed preset library.
 
-Presets are immutable at runtime.  Exactly one preset must have
-``is_default=True``.  The library is validated at application startup
-via :func:`validate_presets`.
+Presets are stored in the ``presets`` database table. The hardcoded
+``DEFAULT_PRESETS`` list serves as the seed data for initial migration.
+
+At runtime, all lookups read from the database via the preset repository.
 """
 
 import logging
@@ -169,9 +170,30 @@ DEFAULT_PRESETS: list[ReplyPreset] = [
 _PRESET_MAP: dict[str, ReplyPreset] = {p.id: p for p in DEFAULT_PRESETS}
 
 
+def _db_presets() -> list[ReplyPreset]:
+    """Load presets from the database, falling back to hardcoded defaults."""
+    try:
+        from backend.app.db.session import SessionLocal
+        from backend.app.services.preset_repository import list_presets
+
+        db = SessionLocal()
+        try:
+            presets = list_presets(db)
+            if presets:
+                return presets
+        finally:
+            db.close()
+    except Exception:
+        pass
+    return DEFAULT_PRESETS
+
+
 def get_preset_by_id(preset_id: str) -> ReplyPreset | None:
     """Return the preset matching *preset_id*, or ``None``."""
-    return _PRESET_MAP.get(preset_id)
+    for p in _db_presets():
+        if p.id == preset_id:
+            return p
+    return None
 
 
 FALLBACK_DESCRIPTION: str = "No description available for this preset."
@@ -180,12 +202,12 @@ FALLBACK_DESCRIPTION: str = "No description available for this preset."
 
 def get_preset_labels() -> dict[str, str]:
     """Return ``{id: label}`` for every available preset."""
-    return {p.id: p.label for p in DEFAULT_PRESETS}
+    return {p.id: p.label for p in _db_presets()}
 
 
 def get_preset_description(preset_id: str) -> str:
     """Return the description for *preset_id*, or a fallback message."""
-    preset = _PRESET_MAP.get(preset_id)
+    preset = get_preset_by_id(preset_id)
     if preset is None or not preset.description:
         return FALLBACK_DESCRIPTION
     return preset.description
@@ -197,7 +219,7 @@ def get_default_preset() -> ReplyPreset:
     Raises ``RuntimeError`` if no default is found (should never happen
     after :func:`validate_presets` passes at startup).
     """
-    for p in DEFAULT_PRESETS:
+    for p in _db_presets():
         if p.is_default:
             return p
     raise RuntimeError("No default preset defined")
@@ -214,17 +236,19 @@ def validate_presets() -> None:
 
     Raises ``RuntimeError`` with a developer-facing message on failure.
     """
-    if not DEFAULT_PRESETS:
+    presets = _db_presets()
+
+    if not presets:
         raise RuntimeError("Preset library is empty")
 
     # Unique IDs
-    ids = [p.id for p in DEFAULT_PRESETS]
+    ids = [p.id for p in presets]
     if len(ids) != len(set(ids)):
         dupes = [pid for pid in ids if ids.count(pid) > 1]
         raise RuntimeError(f"Duplicate preset IDs: {set(dupes)}")
 
     # Exactly one default
-    defaults = [p for p in DEFAULT_PRESETS if p.is_default]
+    defaults = [p for p in presets if p.is_default]
     if len(defaults) == 0:
         raise RuntimeError("No preset is marked as default (is_default=True)")
     if len(defaults) > 1:
@@ -232,6 +256,6 @@ def validate_presets() -> None:
 
     logger.info(
         "validate_presets: %d presets loaded, default=%s",
-        len(DEFAULT_PRESETS),
+        len(presets),
         defaults[0].id,
     )
