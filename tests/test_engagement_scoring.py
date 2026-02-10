@@ -1,5 +1,6 @@
-"""Tests for engagement scoring (Story 6.2)."""
+"""Tests for engagement scoring (Stories 6.2 & 6.3)."""
 
+import json
 from datetime import UTC, datetime
 
 import pytest
@@ -258,3 +259,143 @@ class TestCountByAuthor:
         db.commit()
 
         assert count_by_author(db, "Alice") == 0
+
+
+# ---------------------------------------------------------------------------
+# Story 6.3: Score persistence in create_draft
+# ---------------------------------------------------------------------------
+
+
+class TestScorePersistence:
+    def test_create_draft_persists_score(self, db: Session) -> None:
+        record = create_draft(
+            db,
+            post_text="hello",
+            preset_id="p1",
+            prompt_text="prompt",
+            created_date=_NOW,
+            author_name="Alice",
+            follower_count=5000,
+            like_count=200,
+            comment_count=50,
+            repost_count=30,
+        )
+        db.commit()
+        assert record.engagement_score is not None
+        assert 0 <= record.engagement_score <= 100
+
+    def test_create_draft_persists_breakdown(self, db: Session) -> None:
+        record = create_draft(
+            db,
+            post_text="hello",
+            preset_id="p1",
+            prompt_text="prompt",
+            created_date=_NOW,
+            follower_count=1000,
+        )
+        db.commit()
+        assert record.score_breakdown is not None
+        breakdown = json.loads(record.score_breakdown)
+        assert set(breakdown.keys()) == ALL_SIGNAL_KEYS
+
+
+class TestScoreWithNullSignals:
+    def test_no_signals_gives_zero(self, db: Session) -> None:
+        record = create_draft(
+            db,
+            post_text="hello",
+            preset_id="p1",
+            prompt_text="prompt",
+            created_date=_NOW,
+        )
+        db.commit()
+        assert record.engagement_score == 0
+
+    def test_no_signals_breakdown_all_zero(self, db: Session) -> None:
+        record = create_draft(
+            db,
+            post_text="hello",
+            preset_id="p1",
+            prompt_text="prompt",
+            created_date=_NOW,
+        )
+        db.commit()
+        breakdown = json.loads(record.score_breakdown)
+        assert all(v == 0.0 for v in breakdown.values())
+
+
+class TestInteractionCountIntegration:
+    def test_interaction_count_increases_score(self, db: Session) -> None:
+        """Creating prior records for the same author increases interaction_count."""
+        # First draft — no prior records for this author
+        r1 = create_draft(
+            db,
+            post_text="first",
+            preset_id="p1",
+            prompt_text="prompt",
+            created_date=_NOW,
+            author_name="Alice",
+            follower_count=100,
+        )
+        db.commit()
+
+        # Second draft — 1 prior record for Alice
+        r2 = create_draft(
+            db,
+            post_text="second",
+            preset_id="p1",
+            prompt_text="prompt",
+            created_date=_NOW,
+            author_name="Alice",
+            follower_count=100,
+        )
+        db.commit()
+
+        assert r2.engagement_score >= r1.engagement_score
+
+    def test_different_author_no_interaction_boost(
+        self, db: Session,
+    ) -> None:
+        create_draft(
+            db,
+            post_text="alice post",
+            preset_id="p1",
+            prompt_text="prompt",
+            created_date=_NOW,
+            author_name="Alice",
+            follower_count=100,
+        )
+        db.commit()
+
+        bob = create_draft(
+            db,
+            post_text="bob post",
+            preset_id="p1",
+            prompt_text="prompt",
+            created_date=_NOW,
+            author_name="Bob",
+            follower_count=100,
+        )
+        db.commit()
+
+        breakdown = json.loads(bob.score_breakdown)
+        assert breakdown["interaction_count"] == 0.0
+
+
+class TestScoreBreakdownJson:
+    def test_breakdown_is_valid_json(self, db: Session) -> None:
+        record = create_draft(
+            db,
+            post_text="hello",
+            preset_id="p1",
+            prompt_text="prompt",
+            created_date=_NOW,
+            follower_count=500,
+            like_count=50,
+        )
+        db.commit()
+        breakdown = json.loads(record.score_breakdown)
+        assert isinstance(breakdown, dict)
+        assert set(breakdown.keys()) == ALL_SIGNAL_KEYS
+        for v in breakdown.values():
+            assert isinstance(v, float)

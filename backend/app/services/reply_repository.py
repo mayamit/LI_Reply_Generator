@@ -6,6 +6,7 @@ transaction boundaries remain under the caller's control.
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime
 
@@ -14,6 +15,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from backend.app.models.reply_record import ReplyRecord
+from backend.app.services.engagement_scoring import compute_engagement_score
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +70,15 @@ def create_draft(
     repost_count: int | None = None,
 ) -> ReplyRecord:
     """Create a new draft ReplyRecord and flush to obtain an id."""
+    interaction_count = count_by_author(db, author_name)
+    score_result = compute_engagement_score(
+        follower_count=follower_count,
+        like_count=like_count,
+        comment_count=comment_count,
+        repost_count=repost_count,
+        interaction_count=interaction_count,
+    )
+
     record = ReplyRecord(
         post_text=post_text,
         preset_id=preset_id,
@@ -83,6 +94,8 @@ def create_draft(
         like_count=like_count,
         comment_count=comment_count,
         repost_count=repost_count,
+        engagement_score=score_result.score,
+        score_breakdown=json.dumps(score_result.breakdown),
     )
     db.add(record)
     try:
@@ -90,10 +103,11 @@ def create_draft(
     except OperationalError as exc:
         _handle_operational_error(exc, "create_draft")
     logger.info(
-        "reply_record_created: id=%d preset_id=%s post_text_len=%d",
+        "reply_record_created: id=%d preset_id=%s post_text_len=%d engagement_score=%d",
         record.id,
         preset_id,
         len(post_text),
+        record.engagement_score,
     )
     return record
 

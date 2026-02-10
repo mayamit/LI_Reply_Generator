@@ -51,6 +51,12 @@ class ReplyRecord(Base):
     repost_count: Mapped[int | None] = mapped_column(
         Integer, nullable=True,
     )
+    engagement_score: Mapped[int | None] = mapped_column(
+        Integer, nullable=True,
+    )
+    score_breakdown: Mapped[str | None] = mapped_column(
+        Text, nullable=True,
+    )
     preset_id: Mapped[str] = mapped_column(Text, nullable=False)
     prompt_text: Mapped[str] = mapped_column(Text, nullable=False)
     generated_reply: Mapped[str | None] = mapped_column(Text, nullable=True)

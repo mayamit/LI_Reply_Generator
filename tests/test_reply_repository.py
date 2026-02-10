@@ -61,6 +61,8 @@ class TestSchemaCreation:
             "like_count",
             "comment_count",
             "repost_count",
+            "engagement_score",
+            "score_breakdown",
             "preset_id",
             "prompt_text",
             "generated_reply",
