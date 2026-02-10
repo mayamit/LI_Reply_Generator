@@ -234,6 +234,10 @@ with st.form("post_context_form"):
     )
     if post_url.strip():
         st.link_button("Open Post ↗", post_url.strip())
+        st.info(
+            "Open the post above, then copy and paste the post text "
+            "into the field at the top of this form."
+        )
     article_text = st.text_area(
         "Linked article text (if any)",
         value=st.session_state.get("pasted_article_text") or "",

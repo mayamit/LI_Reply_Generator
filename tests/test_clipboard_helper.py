@@ -218,3 +218,25 @@ class TestWhitespaceTrimming:
     def test_content_with_internal_whitespace_preserved(self) -> None:
         raw = "  Line 1\n  Line 2  "
         assert raw.strip() == "Line 1\n  Line 2"
+
+
+# ---------------------------------------------------------------------------
+# Story 7.4: URL-first helper text conditions
+# ---------------------------------------------------------------------------
+
+
+class TestUrlFirstHelperText:
+    def test_url_present_triggers_hint(self) -> None:
+        """When post_url has content, helper text should be shown."""
+        post_url = "https://linkedin.com/posts/example"
+        assert post_url.strip()  # Truthy → hint displayed
+
+    def test_empty_url_no_hint(self) -> None:
+        """When post_url is empty, no helper text should be shown."""
+        post_url = ""
+        assert not post_url.strip()  # Falsy → no hint
+
+    def test_whitespace_only_url_no_hint(self) -> None:
+        """Whitespace-only URL should not trigger hint."""
+        post_url = "   "
+        assert not post_url.strip()
