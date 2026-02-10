@@ -30,6 +30,10 @@ class PostContextInput(BaseModel):
     post_url: str | None = Field(default=None, max_length=2_000)
     article_text: str | None = Field(default=None, max_length=50_000)
     image_ref: str | None = Field(default=None, max_length=2_000)
+    follower_count: int | None = Field(default=None, ge=0)
+    like_count: int | None = Field(default=None, ge=0)
+    comment_count: int | None = Field(default=None, ge=0)
+    repost_count: int | None = Field(default=None, ge=0)
 
     @field_validator(
         "post_text",
@@ -77,4 +81,8 @@ class PostContextPayload(BaseModel):
     post_url: str | None = None
     article_text: str | None = None
     image_ref: str | None = None
+    follower_count: int | None = None
+    like_count: int | None = None
+    comment_count: int | None = None
+    repost_count: int | None = None
     validation_warnings: list[str] = Field(default_factory=list)

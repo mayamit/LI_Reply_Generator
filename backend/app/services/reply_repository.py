@@ -61,6 +61,10 @@ def create_draft(
     post_url: str | None = None,
     article_text: str | None = None,
     image_ref: str | None = None,
+    follower_count: int | None = None,
+    like_count: int | None = None,
+    comment_count: int | None = None,
+    repost_count: int | None = None,
 ) -> ReplyRecord:
     """Create a new draft ReplyRecord and flush to obtain an id."""
     record = ReplyRecord(
@@ -74,6 +78,10 @@ def create_draft(
         post_url=post_url,
         article_text=article_text,
         image_ref=image_ref,
+        follower_count=follower_count,
+        like_count=like_count,
+        comment_count=comment_count,
+        repost_count=repost_count,
     )
     db.add(record)
     try:

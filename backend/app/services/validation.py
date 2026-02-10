@@ -76,6 +76,10 @@ def validate_and_build_payload(
         post_url=ctx.post_url,
         article_text=ctx.article_text,
         image_ref=ctx.image_ref,
+        follower_count=ctx.follower_count,
+        like_count=ctx.like_count,
+        comment_count=ctx.comment_count,
+        repost_count=ctx.repost_count,
         validation_warnings=warnings,
     )
     return payload, []

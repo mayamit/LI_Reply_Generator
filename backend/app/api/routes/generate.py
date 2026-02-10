@@ -55,6 +55,10 @@ def generate(body: GenerateRequest, db: Session = Depends(get_db)) -> GenerateRe
         post_url=payload_result.post_url,
         article_text=payload_result.article_text,
         image_ref=payload_result.image_ref,
+        follower_count=payload_result.follower_count,
+        like_count=payload_result.like_count,
+        comment_count=payload_result.comment_count,
+        repost_count=payload_result.repost_count,
         validation_warnings=payload_result.validation_warnings,
     )
 
@@ -75,6 +79,10 @@ def generate(body: GenerateRequest, db: Session = Depends(get_db)) -> GenerateRe
             post_url=payload.post_url,
             article_text=payload.article_text,
             image_ref=payload.image_ref,
+            follower_count=payload.follower_count,
+            like_count=payload.like_count,
+            comment_count=payload.comment_count,
+            repost_count=payload.repost_count,
         )
         db.commit()
         record_id = record.id

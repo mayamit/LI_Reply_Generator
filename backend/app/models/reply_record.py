@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, Index, String, Text
+from sqlalchemy import CheckConstraint, DateTime, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.app.db.base import Base
@@ -38,6 +38,18 @@ class ReplyRecord(Base):
     article_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     image_ref: Mapped[str | None] = mapped_column(
         String(2048), nullable=True,
+    )
+    follower_count: Mapped[int | None] = mapped_column(
+        Integer, nullable=True,
+    )
+    like_count: Mapped[int | None] = mapped_column(
+        Integer, nullable=True,
+    )
+    comment_count: Mapped[int | None] = mapped_column(
+        Integer, nullable=True,
+    )
+    repost_count: Mapped[int | None] = mapped_column(
+        Integer, nullable=True,
     )
     preset_id: Mapped[str] = mapped_column(Text, nullable=False)
     prompt_text: Mapped[str] = mapped_column(Text, nullable=False)

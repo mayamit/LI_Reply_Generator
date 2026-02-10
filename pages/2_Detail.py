@@ -87,6 +87,19 @@ if record.article_text:
 if record.image_ref:
     st.write(f"**Image reference:** {record.image_ref}")
 
+# --- Engagement Signals ---
+_engagement = {
+    "Followers": record.follower_count,
+    "Likes": record.like_count,
+    "Comments": record.comment_count,
+    "Reposts": record.repost_count,
+}
+if any(v is not None for v in _engagement.values()):
+    st.markdown("### Engagement Signals")
+    e_cols = st.columns(4)
+    for col, (label, value) in zip(e_cols, _engagement.items()):
+        col.metric(label, f"{value:,}" if value is not None else "—")
+
 # --- Generated Reply ---
 st.markdown("### Generated Reply")
 if record.generated_reply:

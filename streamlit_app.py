@@ -182,6 +182,43 @@ with st.form("post_context_form"):
         help="Describe any image attached to the post (max 2,000 characters).",
     )
 
+    st.subheader("Engagement Signals")
+    eng_col1, eng_col2 = st.columns(2)
+    with eng_col1:
+        follower_count = st.number_input(
+            "Follower count",
+            min_value=0,
+            value=None,
+            step=1,
+            help="Number of followers the post author has.",
+            placeholder="e.g. 5000",
+        )
+        like_count = st.number_input(
+            "Like count",
+            min_value=0,
+            value=None,
+            step=1,
+            help="Number of likes on the post.",
+            placeholder="e.g. 120",
+        )
+    with eng_col2:
+        comment_count = st.number_input(
+            "Comment count",
+            min_value=0,
+            value=None,
+            step=1,
+            help="Number of comments on the post.",
+            placeholder="e.g. 30",
+        )
+        repost_count = st.number_input(
+            "Repost count",
+            min_value=0,
+            value=None,
+            step=1,
+            help="Number of reposts/shares of the post.",
+            placeholder="e.g. 15",
+        )
+
     # AC1: Disable submit while generation is in progress
     submitted = st.form_submit_button(
         "Validate & Generate Reply",
@@ -211,6 +248,14 @@ if submitted:
         ("image_ref", image_ref),
     ]:
         if val:
+            raw[key] = val
+    for key, val in [
+        ("follower_count", follower_count),
+        ("like_count", like_count),
+        ("comment_count", comment_count),
+        ("repost_count", repost_count),
+    ]:
+        if val is not None:
             raw[key] = val
 
     # --- Pydantic field validation (AC8: inputs preserved on error) ---
