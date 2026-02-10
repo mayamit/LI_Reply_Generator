@@ -64,7 +64,9 @@ else:
     st.write(f"**Author:** {author_display}")
 
 if record.post_url:
-    st.markdown(f"**Post URL:** [{record.post_url}]({record.post_url})")
+    col_url, col_btn = st.columns([3, 1])
+    col_url.markdown(f"**Post URL:** {record.post_url}")
+    col_btn.link_button("Open Post ↗", record.post_url)
 else:
     st.write("**Post URL:** —")
 

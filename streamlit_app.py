@@ -172,6 +172,8 @@ with st.form("post_context_form"):
         "Post URL",
         help="Direct link to the LinkedIn post.",
     )
+    if post_url.strip():
+        st.link_button("Open Post ↗", post_url.strip())
     article_text = st.text_area(
         "Linked article text (if any)",
         height=100,
