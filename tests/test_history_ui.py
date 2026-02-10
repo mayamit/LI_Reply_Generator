@@ -203,3 +203,60 @@ class TestPageImports:
 
         spec = importlib.util.find_spec("pages.2_Detail")
         assert spec is not None
+
+
+# ---------------------------------------------------------------------------
+# Story 6.6: Engagement score display readiness
+# ---------------------------------------------------------------------------
+
+
+class TestEngagementScoreDisplay:
+    def test_record_has_engagement_score(self, db: Session) -> None:
+        create_draft(
+            db,
+            post_text="Scored post.",
+            preset_id="prof_short_agree",
+            prompt_text="Prompt.",
+            created_date=_T0,
+            author_name="Alice",
+            follower_count=5000,
+            like_count=200,
+        )
+        db.commit()
+
+        records = list_records(db)
+        assert records[0].engagement_score is not None
+        assert records[0].engagement_score > 0
+
+    def test_record_without_signals_has_zero_score(
+        self, db: Session,
+    ) -> None:
+        create_draft(
+            db,
+            post_text="No signals.",
+            preset_id="prof_short_agree",
+            prompt_text="Prompt.",
+            created_date=_T0,
+        )
+        db.commit()
+
+        records = list_records(db)
+        assert records[0].engagement_score == 0
+
+    def test_none_engagement_score_is_safe(self, db: Session) -> None:
+        """Records with None engagement_score don't cause errors."""
+        from backend.app.models.reply_record import ReplyRecord
+
+        record = ReplyRecord(
+            post_text="raw",
+            preset_id="p1",
+            prompt_text="prompt",
+            created_date=_T0,
+            status="draft",
+            engagement_score=None,
+        )
+        db.add(record)
+        db.commit()
+
+        records = list_records(db)
+        assert records[0].engagement_score is None

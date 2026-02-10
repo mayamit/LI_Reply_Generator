@@ -3,6 +3,7 @@
 import streamlit as st
 from backend.app.db.session import SessionLocal
 from backend.app.models.presets import get_preset_labels
+from backend.app.services.engagement_scoring import score_to_label
 from backend.app.services.reply_repository import (
     RecordNotFoundError,
     delete_record,
@@ -87,18 +88,26 @@ if record.article_text:
 if record.image_ref:
     st.write(f"**Image reference:** {record.image_ref}")
 
-# --- Engagement Signals ---
+# --- Engagement Score & Signals ---
+_score = record.engagement_score
+_label = score_to_label(_score)
+_score_display = f"{_score} — {_label}" if _score is not None and _score > 0 else "—"
+
 _engagement = {
     "Followers": record.follower_count,
     "Likes": record.like_count,
     "Comments": record.comment_count,
     "Reposts": record.repost_count,
 }
-if any(v is not None for v in _engagement.values()):
-    st.markdown("### Engagement Signals")
-    e_cols = st.columns(4)
-    for col, (label, value) in zip(e_cols, _engagement.items()):
-        col.metric(label, f"{value:,}" if value is not None else "—")
+_has_signals = any(v is not None for v in _engagement.values())
+
+if _score is not None or _has_signals:
+    st.markdown("### Engagement")
+    score_col, *e_cols = st.columns(5)
+    score_col.metric("Score", _score_display)
+    if _has_signals:
+        for col, (label, value) in zip(e_cols, _engagement.items()):
+            col.metric(label, f"{value:,}" if value is not None else "—")
 
 # --- Generated Reply ---
 st.markdown("### Generated Reply")

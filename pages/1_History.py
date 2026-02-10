@@ -5,6 +5,7 @@ import logging
 import streamlit as st
 from backend.app.db.session import SessionLocal
 from backend.app.models.presets import get_preset_labels
+from backend.app.services.engagement_scoring import score_to_label
 from backend.app.services.reply_repository import (
     count_records,
     list_records,
@@ -68,13 +69,14 @@ st.caption(f"Showing {len(records)} of {total} records")
 preset_labels = get_preset_labels()
 
 # Column headers
-header_cols = st.columns([0.5, 2, 2, 1.5, 2, 1])
+header_cols = st.columns([0.5, 2, 1.5, 1.2, 1, 1.5, 1])
 header_cols[0].markdown("**St.**")
 header_cols[1].markdown("**Author**")
 header_cols[2].markdown("**Preset**")
 header_cols[3].markdown("**Status**")
-header_cols[4].markdown("**Date**")
-header_cols[5].markdown("**Action**")
+header_cols[4].markdown("**Score**")
+header_cols[5].markdown("**Date**")
+header_cols[6].markdown("**Action**")
 
 for record in records:
     preset_name = preset_labels.get(record.preset_id, record.preset_id)
@@ -86,15 +88,27 @@ for record in records:
         else "—"
     )
 
+    # Engagement score badge
+    _label = score_to_label(record.engagement_score)
+    if _label == "High":
+        score_display = f"🟢 {record.engagement_score}"
+    elif _label == "Medium":
+        score_display = f"🟡 {record.engagement_score}"
+    elif _label == "Low":
+        score_display = f"🔴 {record.engagement_score}"
+    else:
+        score_display = "—"
+
     with st.container():
-        cols = st.columns([0.5, 2, 2, 1.5, 2, 1])
+        cols = st.columns([0.5, 2, 1.5, 1.2, 1, 1.5, 1])
         cols[0].write(status_icon)
         cols[1].write(f"**{author_display}**")
         cols[2].write(preset_name)
         cols[3].write(record.status)
-        cols[4].write(date_display)
+        cols[4].write(score_display)
+        cols[5].write(date_display)
         # AC4: Click to open detail view
-        if cols[5].button("View", key=f"view_{record.id}"):
+        if cols[6].button("View", key=f"view_{record.id}"):
             st.session_state.detail_record_id = record.id
             st.switch_page("pages/2_Detail.py")
 

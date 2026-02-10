@@ -10,6 +10,7 @@ from backend.app.services.engagement_scoring import (
     WEIGHTS,
     EngagementScore,
     compute_engagement_score,
+    score_to_label,
 )
 from backend.app.services.reply_repository import count_by_author, create_draft
 from sqlalchemy import create_engine
@@ -399,3 +400,36 @@ class TestScoreBreakdownJson:
         assert set(breakdown.keys()) == ALL_SIGNAL_KEYS
         for v in breakdown.values():
             assert isinstance(v, float)
+
+
+# ---------------------------------------------------------------------------
+# Story 6.6: score_to_label display helper
+# ---------------------------------------------------------------------------
+
+
+class TestScoreToLabel:
+    def test_none_returns_dash(self) -> None:
+        assert score_to_label(None) == "—"
+
+    def test_zero_returns_dash(self) -> None:
+        assert score_to_label(0) == "—"
+
+    def test_low_boundary(self) -> None:
+        assert score_to_label(1) == "Low"
+        assert score_to_label(39) == "Low"
+
+    def test_medium_boundary(self) -> None:
+        assert score_to_label(40) == "Medium"
+        assert score_to_label(69) == "Medium"
+
+    def test_high_boundary(self) -> None:
+        assert score_to_label(70) == "High"
+        assert score_to_label(100) == "High"
+
+    @pytest.mark.parametrize("score,expected", [
+        (15, "Low"),
+        (50, "Medium"),
+        (85, "High"),
+    ])
+    def test_representative_values(self, score: int, expected: str) -> None:
+        assert score_to_label(score) == expected

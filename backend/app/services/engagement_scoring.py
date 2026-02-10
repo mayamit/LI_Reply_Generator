@@ -103,3 +103,22 @@ def compute_engagement_score(
     score = min(max(round(weighted_sum * 100), 0), 100)
 
     return EngagementScore(score=score, breakdown=breakdown)
+
+
+# ---------------------------------------------------------------------------
+# Display helpers
+# ---------------------------------------------------------------------------
+
+def score_to_label(score: int | None) -> str:
+    """Return a human-readable label for an engagement score.
+
+    Returns ``"High"`` (70–100), ``"Medium"`` (40–69), ``"Low"`` (1–39),
+    or ``"—"`` for ``None`` or 0.
+    """
+    if score is None or score == 0:
+        return "—"
+    if score >= 70:
+        return "High"
+    if score >= 40:
+        return "Medium"
+    return "Low"
