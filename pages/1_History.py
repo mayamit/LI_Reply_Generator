@@ -13,7 +13,6 @@ from backend.app.services.reply_repository import (
 
 logger = logging.getLogger(__name__)
 
-st.set_page_config(page_title="Reply History", layout="centered")
 st.title("Reply History")
 
 # --- Filters ---

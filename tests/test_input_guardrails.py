@@ -208,9 +208,12 @@ class TestActionableErrors:
 
     def test_field_hints_in_streamlit_source(self) -> None:
         """Verify actionable hints are defined for key fields."""
-        import streamlit_app
+        import os
 
-        source = open(streamlit_app.__file__).read()
+        generate_page = os.path.join(
+            os.path.dirname(__file__), os.pardir, "pages", "0_Generate.py",
+        )
+        source = open(generate_page).read()
         assert "_FIELD_HINTS" in source
         assert "post_text" in source
         assert "article_text" in source

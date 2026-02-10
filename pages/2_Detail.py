@@ -10,7 +10,6 @@ from backend.app.services.reply_repository import (
     get_by_id,
 )
 
-st.set_page_config(page_title="Reply Detail", layout="centered")
 st.title("Reply Detail")
 
 record_id = st.session_state.get("detail_record_id")

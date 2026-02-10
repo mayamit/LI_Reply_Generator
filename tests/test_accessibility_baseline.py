@@ -6,10 +6,14 @@ Covers acceptance criteria:
   AC3: Primary actions have clear labels and are distinguishable
 """
 
-import inspect
 from pathlib import Path
 
 _PAGES_DIR = Path(__file__).resolve().parent.parent / "pages"
+_GENERATE_PAGE = _PAGES_DIR / "0_Generate.py"
+
+
+def _read_generate_source() -> str:
+    return _GENERATE_PAGE.read_text()
 
 
 def _read_detail_source() -> str:
@@ -28,18 +32,14 @@ def _read_history_source() -> str:
 class TestLogicalTabOrder:
     def test_main_page_form_fields_ordered(self) -> None:
         """Post text appears before optional fields in source order."""
-        import streamlit_app
-
-        source = inspect.getsource(streamlit_app)
+        source = _read_generate_source()
         post_text_pos = source.index("Paste the LinkedIn post")
         author_name_pos = source.index('"Author name"')
         assert post_text_pos < author_name_pos
 
     def test_optional_fields_grouped(self) -> None:
         """Optional context fields are grouped under a subheader."""
-        import streamlit_app
-
-        source = inspect.getsource(streamlit_app)
+        source = _read_generate_source()
         subheader_pos = source.index('"Optional Context"')
         author_pos = source.index('"Author name"')
         assert subheader_pos < author_pos
@@ -60,47 +60,33 @@ class TestLogicalTabOrder:
 class TestFieldAssociatedErrors:
     def test_field_hints_defined_for_key_fields(self) -> None:
         """_FIELD_HINTS maps key input fields to actionable messages."""
-        import streamlit_app
-
-        source = inspect.getsource(streamlit_app)
+        source = _read_generate_source()
         assert "_FIELD_HINTS" in source
         for field in ["post_text", "article_text", "post_url", "author_name"]:
             assert field in source
 
     def test_help_text_on_post_text(self) -> None:
-        import streamlit_app
-
-        source = inspect.getsource(streamlit_app)
+        source = _read_generate_source()
         assert 'help="Required' in source
 
     def test_help_text_on_author_name(self) -> None:
-        import streamlit_app
-
-        source = inspect.getsource(streamlit_app)
+        source = _read_generate_source()
         assert "max 200 characters" in source
 
     def test_help_text_on_author_profile_url(self) -> None:
-        import streamlit_app
-
-        source = inspect.getsource(streamlit_app)
+        source = _read_generate_source()
         assert "LinkedIn profile URL" in source
 
     def test_help_text_on_post_url(self) -> None:
-        import streamlit_app
-
-        source = inspect.getsource(streamlit_app)
+        source = _read_generate_source()
         assert "Direct link to the LinkedIn post" in source
 
     def test_help_text_on_article_text(self) -> None:
-        import streamlit_app
-
-        source = inspect.getsource(streamlit_app)
+        source = _read_generate_source()
         assert "max 50,000 characters" in source
 
     def test_help_text_on_image_ref(self) -> None:
-        import streamlit_app
-
-        source = inspect.getsource(streamlit_app)
+        source = _read_generate_source()
         assert "max 2,000 characters" in source
 
     def test_help_text_on_history_author_filter(self) -> None:
@@ -115,16 +101,12 @@ class TestFieldAssociatedErrors:
 
 class TestPrimaryActionLabels:
     def test_generate_button_is_primary(self) -> None:
-        import streamlit_app
-
-        source = inspect.getsource(streamlit_app)
+        source = _read_generate_source()
         # form_submit_button with type="primary"
         assert 'type="primary"' in source
 
     def test_approve_button_has_primary_type(self) -> None:
-        import streamlit_app
-
-        source = inspect.getsource(streamlit_app)
+        source = _read_generate_source()
         assert '"Approve & Save"' in source
         # Approve uses type="primary"
         approve_idx = source.index('"Approve & Save"')
@@ -132,9 +114,7 @@ class TestPrimaryActionLabels:
         assert 'type="primary"' in nearby
 
     def test_copy_button_has_clear_label(self) -> None:
-        import streamlit_app
-
-        source = inspect.getsource(streamlit_app)
+        source = _read_generate_source()
         assert '"Copy to Clipboard"' in source
 
     def test_delete_button_label_distinct(self) -> None:

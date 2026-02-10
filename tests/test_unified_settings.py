@@ -235,11 +235,11 @@ class TestSharedSettings:
         assert mod1.settings is mod2.settings
 
     def test_streamlit_uses_shared_settings(self) -> None:
-        """Verify streamlit_app imports settings for API_BASE."""
+        """Verify ui_helpers imports settings for API_BASE."""
         import importlib
 
-        import streamlit_app
+        import ui_helpers
 
-        importlib.reload(streamlit_app)
-        expected = f"http://{streamlit_app.settings.api_host}:{streamlit_app.settings.api_port}"
-        assert streamlit_app.API_BASE == expected
+        importlib.reload(ui_helpers)
+        expected = f"http://{ui_helpers.settings.api_host}:{ui_helpers.settings.api_port}"
+        assert ui_helpers.API_BASE == expected

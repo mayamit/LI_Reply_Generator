@@ -6,9 +6,14 @@ Covers:
   - UI state flags (generating, approving)
 """
 
+import os
 from unittest.mock import MagicMock
 
-from streamlit_app import _safe_error_detail
+from ui_helpers import _safe_error_detail
+
+_GENERATE_PAGE = os.path.join(
+    os.path.dirname(__file__), os.pardir, "pages", "0_Generate.py",
+)
 
 # ---------------------------------------------------------------------------
 # AC7: _safe_error_detail extracts user-friendly messages
@@ -70,23 +75,18 @@ class TestSafeErrorDetail:
 class TestSessionStateDefaults:
     def test_streamlit_app_defines_state_keys(self) -> None:
         """Verify all required session state keys are initialized."""
-        import streamlit_app
-
-        # These are the keys the app initializes
         expected_keys = [
             "reply_text", "record_id", "approved",
             "generation_meta", "generating", "approving",
             "last_error", "last_error_retryable",
         ]
-        source = open(streamlit_app.__file__).read()
+        source = open(_GENERATE_PAGE).read()
         for key in expected_keys:
             assert f'"{key}"' in source, f"Missing session state key: {key}"
 
     def test_generating_flag_exists_in_source(self) -> None:
         """AC1/AC4: generating and approving flags are used."""
-        import streamlit_app
-
-        source = open(streamlit_app.__file__).read()
+        source = open(_GENERATE_PAGE).read()
         assert "st.session_state.generating" in source
         assert "st.session_state.approving" in source
 
@@ -99,52 +99,44 @@ class TestSessionStateDefaults:
 class TestUiBehavior:
     def test_generate_spinner_present(self) -> None:
         """AC1: Spinner during generation."""
-        import streamlit_app
-
-        source = open(streamlit_app.__file__).read()
+        source = open(_GENERATE_PAGE).read()
         assert 'st.spinner("Generating reply...")' in source
 
     def test_approve_spinner_present(self) -> None:
         """AC4: Spinner during approval."""
-        import streamlit_app
-
-        source = open(streamlit_app.__file__).read()
+        source = open(_GENERATE_PAGE).read()
         assert 'st.spinner("Saving approval...")' in source
 
     def test_submit_button_disabled_during_generation(self) -> None:
         """AC1: Submit button disabled while generating."""
-        import streamlit_app
-
-        source = open(streamlit_app.__file__).read()
+        source = open(_GENERATE_PAGE).read()
         assert "disabled=st.session_state.generating" in source
 
     def test_approve_button_disabled_during_approval(self) -> None:
         """AC4: Approve button disabled while approving."""
-        import streamlit_app
-
-        source = open(streamlit_app.__file__).read()
+        source = open(_GENERATE_PAGE).read()
         assert "disabled=st.session_state.approving" in source
 
     def test_success_messages_present(self) -> None:
         """AC2/AC5/AC6: Success confirmations shown."""
-        import streamlit_app
-
-        source = open(streamlit_app.__file__).read()
+        source = open(_GENERATE_PAGE).read()
         assert "Reply generated successfully!" in source  # AC2
         assert "Reply approved and saved!" in source  # AC5
-        assert "Copied to clipboard!" in source  # AC6
+        # AC6: "Copied to clipboard!" is in ui_helpers._copy_to_clipboard
+        import inspect
+
+        import ui_helpers
+
+        helpers_source = inspect.getsource(ui_helpers._copy_to_clipboard)
+        assert "Copied to clipboard!" in helpers_source  # AC6
 
     def test_retryable_guidance_present(self) -> None:
         """AC3: Retryable errors offer retry guidance."""
-        import streamlit_app
-
-        source = open(streamlit_app.__file__).read()
+        source = open(_GENERATE_PAGE).read()
         assert "retryable" in source.lower()
         assert "inputs are preserved" in source
 
     def test_inputs_preserved_messaging(self) -> None:
         """AC8: Error messages tell user inputs are preserved."""
-        import streamlit_app
-
-        source = open(streamlit_app.__file__).read()
+        source = open(_GENERATE_PAGE).read()
         assert "preserved" in source

@@ -198,7 +198,7 @@ class TestSharedDbPath:
 
     def test_streamlit_imports_shared_settings(self) -> None:
         """Streamlit uses the same settings module as FastAPI."""
-        import streamlit_app
+        import ui_helpers
         from backend.app.core.settings import settings
 
-        assert streamlit_app.settings is settings
+        assert ui_helpers.settings is settings

@@ -7,8 +7,13 @@ Covers acceptance criteria:
 """
 
 import inspect
+import os
 
-import streamlit_app
+import ui_helpers
+
+_GENERATE_PAGE = os.path.join(
+    os.path.dirname(__file__), os.pardir, "pages", "0_Generate.py",
+)
 
 # ---------------------------------------------------------------------------
 # Helpers / source inspection
@@ -16,7 +21,7 @@ import streamlit_app
 
 
 def _source() -> str:
-    return inspect.getsource(streamlit_app)
+    return open(_GENERATE_PAGE).read()
 
 
 # ---------------------------------------------------------------------------
@@ -26,7 +31,7 @@ def _source() -> str:
 
 class TestUnsavedDraftWarning:
     def test_has_unsaved_draft_function_exists(self) -> None:
-        assert hasattr(streamlit_app, "_has_unsaved_draft")
+        assert hasattr(ui_helpers, "_has_unsaved_draft")
 
     def test_unsaved_draft_true_when_reply_not_approved(self) -> None:
         """_has_unsaved_draft returns True when reply exists and not approved."""
@@ -35,7 +40,7 @@ class TestUnsavedDraftWarning:
         st.session_state.reply_text = "draft reply"
         st.session_state.approved = False
         try:
-            assert streamlit_app._has_unsaved_draft() is True
+            assert ui_helpers._has_unsaved_draft() is True
         finally:
             st.session_state.reply_text = ""
             st.session_state.approved = False
@@ -46,7 +51,7 @@ class TestUnsavedDraftWarning:
         st.session_state.reply_text = "approved reply"
         st.session_state.approved = True
         try:
-            assert streamlit_app._has_unsaved_draft() is False
+            assert ui_helpers._has_unsaved_draft() is False
         finally:
             st.session_state.reply_text = ""
             st.session_state.approved = False
@@ -57,7 +62,7 @@ class TestUnsavedDraftWarning:
         st.session_state.reply_text = ""
         st.session_state.approved = False
         try:
-            assert streamlit_app._has_unsaved_draft() is False
+            assert ui_helpers._has_unsaved_draft() is False
         finally:
             st.session_state.reply_text = ""
             st.session_state.approved = False
@@ -87,7 +92,7 @@ class TestUnsavedDraftWarning:
 
 class TestResetSession:
     def test_reset_session_function_exists(self) -> None:
-        assert hasattr(streamlit_app, "_reset_session")
+        assert hasattr(ui_helpers, "_reset_session")
 
     def test_reset_session_clears_reply_text(self) -> None:
         import streamlit as st
@@ -102,7 +107,7 @@ class TestResetSession:
         st.session_state.last_error_retryable = True
         st.session_state.confirm_new_reply = True
 
-        streamlit_app._reset_session()
+        ui_helpers._reset_session()
 
         assert st.session_state.reply_text == ""
         assert st.session_state.record_id is None
@@ -131,7 +136,7 @@ class TestNoDbModification:
         import io
 
         output = io.StringIO()
-        dis.dis(streamlit_app._reset_session, file=output)
+        dis.dis(ui_helpers._reset_session, file=output)
         bytecode = output.getvalue()
         # Should not reference any DB operations
         assert "delete" not in bytecode.lower()
@@ -139,7 +144,7 @@ class TestNoDbModification:
 
     def test_no_db_import_in_reset_function(self) -> None:
         """The _reset_session function source should not reference DB operations."""
-        source = inspect.getsource(streamlit_app._reset_session)
+        source = inspect.getsource(ui_helpers._reset_session)
         assert "db" not in source.lower()
         assert "session_local" not in source.lower()
         assert "delete" not in source.lower()

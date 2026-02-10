@@ -145,40 +145,40 @@ class TestClipboardCounter:
 
 
 class TestReadClipboardHelper:
-    @patch("streamlit_app.streamlit_js_eval")
-    @patch("streamlit_app.st")
+    @patch("ui_helpers.streamlit_js_eval")
+    @patch("ui_helpers.st")
     def test_returns_string_on_success(
         self, mock_st: MagicMock, mock_js_eval: MagicMock,
     ) -> None:
         mock_st.session_state = {"_clipboard_counter": 0}
         mock_js_eval.return_value = "clipboard content"
 
-        from streamlit_app import _read_clipboard
+        from ui_helpers import _read_clipboard
 
         result = _read_clipboard()
         assert result == "clipboard content"
 
-    @patch("streamlit_app.streamlit_js_eval")
-    @patch("streamlit_app.st")
+    @patch("ui_helpers.streamlit_js_eval")
+    @patch("ui_helpers.st")
     def test_returns_none_on_non_string(
         self, mock_st: MagicMock, mock_js_eval: MagicMock,
     ) -> None:
         mock_st.session_state = {"_clipboard_counter": 0}
         mock_js_eval.return_value = 0  # Non-string result
 
-        from streamlit_app import _read_clipboard
+        from ui_helpers import _read_clipboard
 
         result = _read_clipboard()
         assert result is None
 
-    @patch("streamlit_app.streamlit_js_eval", side_effect=Exception("JS error"))
-    @patch("streamlit_app.st")
+    @patch("ui_helpers.streamlit_js_eval", side_effect=Exception("JS error"))
+    @patch("ui_helpers.st")
     def test_returns_none_on_exception(
         self, mock_st: MagicMock, mock_js_eval: MagicMock,
     ) -> None:
         mock_st.session_state = {"_clipboard_counter": 0}
 
-        from streamlit_app import _read_clipboard
+        from ui_helpers import _read_clipboard
 
         result = _read_clipboard()
         assert result is None
