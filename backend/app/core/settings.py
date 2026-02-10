@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     llm_timeout_seconds: int = 30
 
+    # Engagement score recomputation
+    score_recompute_enabled: bool = True
+    score_recompute_interval_seconds: int = 3600
+
     @property
     def is_llm_configured(self) -> bool:
         """Return True if at least one LLM API key is set."""
@@ -71,6 +75,8 @@ class Settings(BaseSettings):
             "app_db_path": self.app_db_path,
             "llm_timeout_seconds": self.llm_timeout_seconds,
             "is_llm_configured": self.is_llm_configured,
+            "score_recompute_enabled": self.score_recompute_enabled,
+            "score_recompute_interval_seconds": self.score_recompute_interval_seconds,
         }
 
 

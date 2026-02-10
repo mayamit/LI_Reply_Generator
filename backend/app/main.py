@@ -28,8 +28,16 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     init_db()
     run_migrations()
     validate_presets()
+    if settings.score_recompute_enabled:
+        from backend.app.core.scheduler import start_score_recomputation_scheduler
+
+        start_score_recomputation_scheduler(settings.score_recompute_interval_seconds)
     logger.info("LI Reply Generator API ready")
     yield
+    if settings.score_recompute_enabled:
+        from backend.app.core.scheduler import stop_score_recomputation_scheduler
+
+        stop_score_recomputation_scheduler()
     logger.info("LI Reply Generator API shutting down")
 
 
