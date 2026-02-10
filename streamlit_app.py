@@ -11,6 +11,7 @@ from backend.app.models.post_context import PostContextInput
 from backend.app.models.presets import get_preset_description, get_preset_labels
 from backend.app.services.validation import validate_and_build_payload
 from pydantic import ValidationError
+from streamlit_js_eval import streamlit_js_eval
 
 logger = logging.getLogger(__name__)
 
@@ -82,11 +83,30 @@ if "last_error_retryable" not in st.session_state:
     st.session_state.last_error_retryable = False
 if "confirm_new_reply" not in st.session_state:
     st.session_state.confirm_new_reply = False
+if "pasted_post_text" not in st.session_state:
+    st.session_state.pasted_post_text = None
+if "pasted_article_text" not in st.session_state:
+    st.session_state.pasted_article_text = None
+if "paste_confirmation" not in st.session_state:
+    st.session_state.paste_confirmation = None
 
 
 def _has_unsaved_draft() -> bool:
     """Return True if there is a generated reply that has not been approved."""
     return bool(st.session_state.reply_text) and not st.session_state.approved
+
+
+def _read_clipboard() -> str | None:
+    """Read text from the browser clipboard via JS. Returns None on failure."""
+    try:
+        result = streamlit_js_eval(
+            js_expressions="navigator.clipboard.readText()",
+            key="clipboard_read_"
+            + str(st.session_state.get("_clipboard_counter", 0)),
+        )
+        return result if isinstance(result, str) else None
+    except Exception:
+        return None
 
 
 def _reset_session() -> None:
@@ -100,6 +120,9 @@ def _reset_session() -> None:
     st.session_state.last_error = None
     st.session_state.last_error_retryable = False
     st.session_state.confirm_new_reply = False
+    st.session_state.pasted_post_text = None
+    st.session_state.pasted_article_text = None
+    st.session_state.paste_confirmation = None
 
 
 # --- New Reply button ---
@@ -144,6 +167,42 @@ st.divider()
 # --- Post Context Input Form ---
 st.subheader("Original Post")
 
+# --- Clipboard paste helpers (outside form — forms don't support callbacks) ---
+paste_col1, paste_col2 = st.columns(2)
+with paste_col1:
+    if st.button("📋 Paste into Post Text"):
+        st.session_state._clipboard_counter = (
+            st.session_state.get("_clipboard_counter", 0) + 1
+        )
+        st.session_state._paste_target = "post_text"
+with paste_col2:
+    if st.button("📋 Paste into Article Text"):
+        st.session_state._clipboard_counter = (
+            st.session_state.get("_clipboard_counter", 0) + 1
+        )
+        st.session_state._paste_target = "article_text"
+
+if st.session_state.get("_paste_target"):
+    clipboard_text = _read_clipboard()
+    if clipboard_text and clipboard_text.strip():
+        target = st.session_state._paste_target
+        if target == "post_text":
+            st.session_state.pasted_post_text = clipboard_text.strip()
+        else:
+            st.session_state.pasted_article_text = clipboard_text.strip()
+        st.session_state.paste_confirmation = (
+            f"Pasted into {target.replace('_', ' ')}."
+        )
+        st.session_state._paste_target = None
+        st.rerun()
+    elif clipboard_text is not None:
+        st.warning("Clipboard is empty. Copy some text first.")
+        st.session_state._paste_target = None
+
+if st.session_state.paste_confirmation:
+    st.success(st.session_state.paste_confirmation)
+    st.session_state.paste_confirmation = None
+
 preset_labels = get_preset_labels()
 label_to_id = {label: pid for pid, label in preset_labels.items()}
 
@@ -155,6 +214,7 @@ st.caption(get_preset_description(label_to_id[selected_label]))
 with st.form("post_context_form"):
     post_text = st.text_area(
         "Paste the LinkedIn post you want to reply to",
+        value=st.session_state.get("pasted_post_text") or "",
         height=150,
         help="Required — at least 10 characters.",
     )
@@ -176,6 +236,7 @@ with st.form("post_context_form"):
         st.link_button("Open Post ↗", post_url.strip())
     article_text = st.text_area(
         "Linked article text (if any)",
+        value=st.session_state.get("pasted_article_text") or "",
         height=100,
         help="Paste the article body if the post links to one (max 50,000 characters).",
     )
