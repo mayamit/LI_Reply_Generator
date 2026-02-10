@@ -80,6 +80,51 @@ if "last_error" not in st.session_state:
     st.session_state.last_error = None
 if "last_error_retryable" not in st.session_state:
     st.session_state.last_error_retryable = False
+if "confirm_new_reply" not in st.session_state:
+    st.session_state.confirm_new_reply = False
+
+
+def _has_unsaved_draft() -> bool:
+    """Return True if there is a generated reply that has not been approved."""
+    return bool(st.session_state.reply_text) and not st.session_state.approved
+
+
+def _reset_session() -> None:
+    """Clear all generation-related session state for a fresh start."""
+    st.session_state.reply_text = ""
+    st.session_state.record_id = None
+    st.session_state.approved = False
+    st.session_state.generation_meta = None
+    st.session_state.generating = False
+    st.session_state.approving = False
+    st.session_state.last_error = None
+    st.session_state.last_error_retryable = False
+    st.session_state.confirm_new_reply = False
+
+
+# --- New Reply button ---
+if st.session_state.reply_text:
+    if st.button("New Reply"):
+        if _has_unsaved_draft():
+            st.session_state.confirm_new_reply = True
+        else:
+            _reset_session()
+            st.rerun()
+
+if st.session_state.confirm_new_reply:
+    st.warning(
+        "You have an unsaved draft reply that has not been approved. "
+        "Starting a new reply will discard it."
+    )
+    col_confirm, col_cancel = st.columns(2)
+    with col_confirm:
+        if st.button("Discard draft and start new", type="primary"):
+            _reset_session()
+            st.rerun()
+    with col_cancel:
+        if st.button("Keep editing"):
+            st.session_state.confirm_new_reply = False
+            st.rerun()
 
 # --- API connectivity check ---
 st.subheader("API Status")
